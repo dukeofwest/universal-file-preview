@@ -1,10 +1,8 @@
 # Installation
 
-## npm publication status
+## Install from npm
 
-The package metadata names this project `universal-file-preview@0.1.0`. As of this release preparation, `npm view universal-file-preview name version` returned HTTP 404, so a publicly installable release has not been verified. Do not treat the commands below as available until the release is published and checked in the registry.
-
-After a public release is confirmed, install the package with the package manager used by your application:
+Install the package with the package manager used by your application:
 
 ```sh
 npm install universal-file-preview
@@ -18,7 +16,7 @@ pnpm add universal-file-preview
 yarn add universal-file-preview
 ```
 
-The commands use the actual package name in `package.json`; they are not a claim that the package is currently published or that the name is reserved for this project.
+The commands use the package name configured in `package.json`.
 
 ## Requirements
 

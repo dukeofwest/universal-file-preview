@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 - 2026-10-29
 
 - Expanded release documentation and aligned format-support claims with current parser coverage and automated test evidence.
 - Rebuilt XLSX rendering for Excel fidelity: cell fonts, theme/indexed/tinted colors, solid, pattern and gradient fills, all border styles, alignment, wrapping, indent, rotation, shrink-to-fit, rich text, merged cells, and Excel-exact column widths and row heights.
@@ -22,8 +22,6 @@
 - Improved DOCX style fidelity for theme-aware fonts, font fallbacks, paragraph shading and borders, line spacing, underline styles, character spacing, and anchored DrawingML shape groups.
 - Added DOCX horizontal table banding from custom table styles and preserved whole words in table cells when columns are tight.
 - Honored explicit automatic cell shading so table band colors remain confined to cells without direct shading.
-
-## 0.1.0
 
 - Initial browser package, native image renderer, file detection, binary reader, and typed lifecycle API.
 - Added original ZIP/DEFLATE and XML foundations and basic DOCX, XLSX, and PPTX subsets.

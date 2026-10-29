@@ -1,6 +1,6 @@
 # Release and publishing
 
-This document records the release procedure and the current pre-release status. A release must be validated and explicitly authorized before publication.
+This document records the release procedure. Each release must be validated and explicitly authorized before publication.
 
 ## Current package metadata
 
@@ -9,10 +9,9 @@ This document records the release procedure and the current pre-release status. 
 - Module format: ESM only; no CommonJS export is configured.
 - License metadata: MIT, matching the existing `LICENSE` file.
 - Runtime dependencies: none.
-- Public npm state: `npm view universal-file-preview name version` returned 404 during preparation. This does not establish that the name is available or reserved.
-- GitHub: this checkout had no `.git` directory, branch, or remote when inspected. A repository owner/URL must be confirmed before creating the remote.
+- GitHub: [dukeofwest/universal-file-preview](https://github.com/dukeofwest/universal-file-preview), primary branch `main`.
 
-The MIT license was already present in the project. The project owner must confirm that they have the rights to release all included code and that the existing copyright notice is the intended one. The source archive has no Git history with which to validate attribution.
+The MIT license and copyright notice were present in the project before release preparation. For future releases, verify that all included code is properly licensed and attributed.
 
 ## Before a GitHub release
 
@@ -23,7 +22,7 @@ The MIT license was already present in the project. The project owner must confi
 5. Review the exact files to commit. Do not force-push or overwrite a remote.
 6. Confirm CI on the intended primary branch before tagging a release.
 
-No GitHub remote is configured. A local branch or commit does not imply that a GitHub repository exists; report the repository URL, pushed branch, commit, and CI result only after GitHub confirms them.
+Verify the repository URL, pushed branch, commit, and CI result with GitHub before reporting a release.
 
 ## Before npm publication
 

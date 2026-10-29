@@ -2,8 +2,6 @@
 
 Universal File Preview is a browser-side TypeScript library for previewing common image formats and selected content from Office Open XML documents. It provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
 
-> **Pre-release:** The package is not currently available from the public npm registry. The package name and version are configured as `universal-file-preview@0.1.0`, but npm did not return a public package record during release preparation. Do not rely on `npm install universal-file-preview` until publication is announced.
-
 ## Features
 
 - Preview GIF, PNG, JPEG, WebP, and sanitized SVG using browser image decoding.
@@ -18,7 +16,7 @@ The supported-format matrix lists what is detected, parsed, rendered, and covere
 
 ## Quick start
 
-After the package is published, install it with npm, pnpm, or Yarn as described in [Installation](./docs/installation.md). The following example uses a browser file input and the public `FilePreviewer` API:
+Install the package with `npm install universal-file-preview` as described in [Installation](./docs/installation.md). The following example uses a browser file input and the public `FilePreviewer` API:
 
 ```ts
 import { FilePreviewer } from "universal-file-preview";
@@ -107,7 +105,7 @@ Read [CONTRIBUTING.md](./CONTRIBUTING.md) before making changes. The implementat
 
 ## License
 
-MIT. See [LICENSE](./LICENSE). Confirm that this license and the included copyright notice match the project owner’s intent before public distribution.
+MIT. See [LICENSE](./LICENSE).
 
 ## Documentation
 
@@ -121,4 +119,8 @@ MIT. See [LICENSE](./LICENSE). Confirm that this license and the included copyri
 - [Development and testing](./docs/development.md)
 - [Release and publishing](./docs/release-and-publishing.md)
 
-No GitHub repository URL or issue tracker is configured in this checkout, so no repository links are listed yet.
+## Repository and support
+
+- [GitHub repository](https://github.com/dukeofwest/universal-file-preview)
+- [Issue tracker](https://github.com/dukeofwest/universal-file-preview/issues)
+- [npm package](https://www.npmjs.com/package/universal-file-preview)
