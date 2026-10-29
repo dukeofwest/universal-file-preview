@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.npmrc
+*.log
+npm-debug.log*
+.DS_Store
+.pnpm-store/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local planning prompts are not product or contributor documentation.
+/project_release.md
+/requirements.md

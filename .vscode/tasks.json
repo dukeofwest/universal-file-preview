@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run preview demo",
+			"type": "shell",
+			"command": "npm run demo",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start demo preview",
+			"type": "shell",
+			"command": "npm run demo",
+			"isBackground": true,
+			"group": "build"
+		}
+	]
+}
