@@ -1,6 +1,6 @@
 {
   "name": "@dukeofwest/universal-file-preview",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A browser-first, extensible file preview engine with original parsing infrastructure.",
   "keywords": [
     "file-preview",
