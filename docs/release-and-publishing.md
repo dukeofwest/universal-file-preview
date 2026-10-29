@@ -4,7 +4,7 @@ This document records the release procedure. Each release must be validated and 
 
 ## Current package metadata
 
-- Name: `universal-file-preview`
+- Name: `@dukeofwest/universal-file-preview`
 - Version: `0.1.0`
 - Module format: ESM only; no CommonJS export is configured.
 - License metadata: MIT, matching the existing `LICENSE` file.
@@ -32,7 +32,7 @@ Verify the repository URL, pushed branch, commit, and CI result with GitHub befo
 4. Ensure the reviewed source changes are committed and the working tree is clean.
 5. Run the build, tests, typecheck, and package dry run; inspect the tarball contents and secrets.
 6. Install the actual tarball in a clean consumer project and verify package exports, declarations, CSS subpath, and documented examples.
-7. Obtain explicit publication authorization, then publish with the appropriate public access settings.
+7. Obtain explicit publication authorization, then publish the scoped package with `npm publish --access public`.
 8. Verify the registry version and repeat the clean-consumer install using the published package. Update the changelog and installation status only after registry confirmation.
 
 Do not configure automatic npm publishing until account permissions, trusted publishing, and release protections have been confirmed. CI should test builds and pull requests but must not publish packages automatically at this stage.

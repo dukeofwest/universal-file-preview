@@ -16,10 +16,10 @@ The supported-format matrix lists what is detected, parsed, rendered, and covere
 
 ## Quick start
 
-Install the package with `npm install universal-file-preview` as described in [Installation](./docs/installation.md). The following example uses a browser file input and the public `FilePreviewer` API:
+Install the package with `npm install @dukeofwest/universal-file-preview` as described in [Installation](./docs/installation.md). The following example uses a browser file input and the public `FilePreviewer` API:
 
 ```ts
-import { FilePreviewer } from "universal-file-preview";
+import { FilePreviewer } from "@dukeofwest/universal-file-preview";
 
 const container = document.querySelector<HTMLElement>("#viewer");
 const input = document.querySelector<HTMLInputElement>("#file");
@@ -63,7 +63,7 @@ For detailed coverage, test status, and limitations, see [Supported formats](./d
 
 The main entry point is `FilePreviewer`. Its options include `container`, `file`, `toolbar`, `zoom`, `download`, `maxFileSize`, and `registry`. The viewer exposes `open()`, `load(file)`, `setZoom(value)`, `fitToWidth()`, `fitToPage()`, and `destroy()`. See [API reference](./docs/api-reference.md) for public exports and exact types.
 
-The package injects its scoped styles by default. Import `universal-file-preview/styles.css` when the prefixed stylesheet classes are also needed outside the viewer root.
+The package injects its scoped styles by default. Import `@dukeofwest/universal-file-preview/styles.css` when the prefixed stylesheet classes are also needed outside the viewer root.
 
 ## Architecture
 
@@ -123,4 +123,4 @@ MIT. See [LICENSE](./LICENSE).
 
 - [GitHub repository](https://github.com/dukeofwest/universal-file-preview)
 - [Issue tracker](https://github.com/dukeofwest/universal-file-preview/issues)
-- [npm package](https://www.npmjs.com/package/universal-file-preview)
+- [npm package](https://www.npmjs.com/package/@dukeofwest/universal-file-preview)

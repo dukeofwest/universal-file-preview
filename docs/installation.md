@@ -5,15 +5,15 @@
 Install the package with the package manager used by your application:
 
 ```sh
-npm install universal-file-preview
+npm install @dukeofwest/universal-file-preview
 ```
 
 ```sh
-pnpm add universal-file-preview
+pnpm add @dukeofwest/universal-file-preview
 ```
 
 ```sh
-yarn add universal-file-preview
+yarn add @dukeofwest/universal-file-preview
 ```
 
 The commands use the package name configured in `package.json`.
@@ -24,7 +24,7 @@ The commands use the package name configured in `package.json`.
 - **JavaScript:** the package is emitted as ES modules targeting ES2022. CommonJS output is not provided.
 - **Node.js for development:** CI currently runs on Node.js 22. A minimum supported development Node.js version has not been declared.
 - **Dependencies:** no runtime dependencies or peer dependencies. TypeScript is the only declared development dependency.
-- **Styles:** the viewer injects its scoped styles. Import `universal-file-preview/styles.css` only if an application also needs the prefixed styles outside the viewer root.
+- **Styles:** the viewer injects its scoped styles. Import `@dukeofwest/universal-file-preview/styles.css` only if an application also needs the prefixed styles outside the viewer root.
 - **Workers:** none are required or emitted.
 - **Remote sources:** the browser must be allowed to fetch the URL under the server's CORS policy.
 
@@ -46,7 +46,7 @@ npm run build
 npm pack
 ```
 
-Install the resulting `universal-file-preview-0.1.0.tgz` from the project directory into the consumer. This local workflow does not require the package to be published. `npm pack --dry-run` lists the files without creating a tarball.
+Install the resulting `dukeofwest-universal-file-preview-0.1.0.tgz` from the project directory into the consumer. This local workflow does not require the package to be published. `npm pack --dry-run` lists the files without creating a tarball.
 
 ## Bundlers and frameworks
 

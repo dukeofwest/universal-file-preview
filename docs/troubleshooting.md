@@ -22,7 +22,7 @@ DOCX/XLSX/PPTX rendering implements subsets of the Office formats. Unsupported e
 
 ## Missing styles in an application
 
-The viewer injects the styles it needs under its own root. If an application uses the `ufp-*` classes outside that root, import `universal-file-preview/styles.css`. Confirm the package subpath is preserved by the application's bundler.
+The viewer injects the styles it needs under its own root. If an application uses the `ufp-*` classes outside that root, import `@dukeofwest/universal-file-preview/styles.css`. Confirm the package subpath is preserved by the application's bundler.
 
 ## TypeScript cannot resolve an import
 

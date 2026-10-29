@@ -106,4 +106,4 @@ Model fields can evolve as format coverage changes and should not be assumed to 
 
 ## CSS subpath
 
-The `universal-file-preview/styles.css` export provides the prefixed stylesheet. The viewer itself injects styles needed for its internal presentation, so applications do not need a global CSS import to render a preview.
+The `@dukeofwest/universal-file-preview/styles.css` export provides the prefixed stylesheet. The viewer itself injects styles needed for its internal presentation, so applications do not need a global CSS import to render a preview.

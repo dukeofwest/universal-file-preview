@@ -7,7 +7,7 @@ These examples use the public API emitted from `src/index.ts`. The npm import be
 Create the viewer after a file is selected. This keeps the required initial file explicit:
 
 ```ts
-import { FilePreviewer, PreviewError } from "universal-file-preview";
+import { FilePreviewer, PreviewError } from "@dukeofwest/universal-file-preview";
 
 const container = document.querySelector<HTMLElement>("#viewer");
 const input = document.querySelector<HTMLInputElement>("#file");
@@ -100,7 +100,7 @@ import {
   createDefaultRendererRegistry,
   FilePreviewer,
   type FileRenderer,
-} from "universal-file-preview";
+} from "@dukeofwest/universal-file-preview";
 
 const registry = createDefaultRendererRegistry();
 const custom: FileRenderer = {
