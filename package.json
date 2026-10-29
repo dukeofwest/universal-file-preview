@@ -2,6 +2,23 @@
   "name": "@dukeofwest/universal-file-preview",
   "version": "0.1.0",
   "description": "A browser-first, extensible file preview engine with original parsing infrastructure.",
+  "keywords": [
+    "file-preview",
+    "document-viewer",
+    "file-viewer",
+    "document-preview",
+    "pdf-viewer",
+    "docx",
+    "xlsx",
+    "pptx",
+    "typescript",
+    "javascript",
+    "angular",
+    "react",
+    "vue",
+    "image-preview",
+    "office-documents"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dukeofwest/universal-file-preview.git"
