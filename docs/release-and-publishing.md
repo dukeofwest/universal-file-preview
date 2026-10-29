@@ -6,6 +6,8 @@ This document records the release procedure. Each release must be validated and 
 
 - Name: `@dukeofwest/universal-file-preview`
 - Version: `0.1.0`
+- npm status: published publicly at [@dukeofwest/universal-file-preview](https://www.npmjs.com/package/@dukeofwest/universal-file-preview).
+- Install: `npm install @dukeofwest/universal-file-preview`
 - Module format: ESM only; no CommonJS export is configured.
 - License metadata: MIT, matching the existing `LICENSE` file.
 - Runtime dependencies: none.

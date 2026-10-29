@@ -2,6 +2,7 @@
 
 ## 0.1.0 - 2026-10-29
 
+- Published publicly to npm as `@dukeofwest/universal-file-preview`.
 - Expanded release documentation and aligned format-support claims with current parser coverage and automated test evidence.
 - Rebuilt XLSX rendering for Excel fidelity: cell fonts, theme/indexed/tinted colors, solid, pattern and gradient fills, all border styles, alignment, wrapping, indent, rotation, shrink-to-fit, rich text, merged cells, and Excel-exact column widths and row heights.
 - Added an Excel number-format engine (sections, conditions, colors, scaling, fractions, scientific, dates/times, elapsed time, accounting fill) that uses the viewer locale for separators, month/day names, and built-in short dates.
