@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Sharpened npm metadata to describe implemented browser previews and removed unverified framework/PDF-viewer keywords.
+- Updated package, security, and release documentation to reflect the published `0.1.1` package and current repository status.
+- Added a technical content and organic adoption plan with examples based on the public API.
+- Made the local demo server's host and port configurable and documented hosting setup without enabling an automatic deployment.
+
+## 0.1.1 - 2026-10-29
+
+- Published the scoped package as `@dukeofwest/universal-file-preview` with corrected public package metadata and ESM distribution entries.
+
 ## 0.1.0 - 2026-10-29
 
 - Published publicly to npm as `@dukeofwest/universal-file-preview`.

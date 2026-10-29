@@ -46,7 +46,7 @@ npm run build
 npm pack
 ```
 
-Install the resulting `dukeofwest-universal-file-preview-0.1.0.tgz` from the project directory into the consumer. This local workflow does not require the package to be published. `npm pack --dry-run` lists the files without creating a tarball.
+The currently published version is `0.1.1`; after `npm pack`, install the generated `dukeofwest-universal-file-preview-0.1.1.tgz` from the project directory into the consumer. For a future version, use the filename printed by `npm pack`. This local workflow does not require the package to be published. `npm pack --dry-run` lists the files without creating a tarball.
 
 ## Bundlers and frameworks
 

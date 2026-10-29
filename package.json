@@ -1,22 +1,24 @@
 {
   "name": "@dukeofwest/universal-file-preview",
   "version": "0.1.1",
-  "description": "A browser-first, extensible file preview engine with original parsing infrastructure.",
+  "description": "Browser-based TypeScript previews for images and selected DOCX, XLSX, and PPTX content.",
   "keywords": [
     "file-preview",
     "document-viewer",
     "file-viewer",
     "document-preview",
-    "pdf-viewer",
     "docx",
+    "docx-preview",
     "xlsx",
+    "xlsx-viewer",
     "pptx",
+    "pptx-viewer",
+    "office-open-xml",
+    "ooxml",
     "typescript",
     "javascript",
-    "angular",
-    "react",
-    "vue",
     "image-preview",
+    "image-viewer",
     "office-documents"
   ],
   "repository": {
@@ -46,6 +48,7 @@
     "docs"
   ],
   "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {

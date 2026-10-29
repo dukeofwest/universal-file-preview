@@ -19,4 +19,7 @@ const server = createServer(async (request, response) => {
   } catch { response.writeHead(404).end("Not found"); }
 });
 
-server.listen(4173, "127.0.0.1", () => process.stdout.write("Demo available at http://127.0.0.1:4173\n"));
+const host = process.env.HOST?.trim() || "127.0.0.1";
+const port = Number(process.env.PORT ?? 4173);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new RangeError("PORT must be an integer from 1 to 65535.");
+server.listen(port, host, () => process.stdout.write(`Demo available at http://${host}:${port}\n`));

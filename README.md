@@ -1,6 +1,9 @@
 # Universal File Preview
 
-Universal File Preview is a browser-side TypeScript library for previewing common image formats and selected content from Office Open XML documents. It provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
+[![npm version](https://img.shields.io/npm/v/%40dukeofwest%2Funiversal-file-preview)](https://www.npmjs.com/package/@dukeofwest/universal-file-preview)
+[![MIT license](https://img.shields.io/github/license/dukeofwest/universal-file-preview)](./LICENSE)
+
+Browser-based TypeScript previews for common image formats and selected content from DOCX, XLSX, and PPTX files. The library provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
 
 ## Features
 
@@ -47,6 +50,20 @@ Call `preview.destroy()` from the owning UI's cleanup hook when the viewer is re
 
 See [Getting started](./docs/getting-started.md) for remote files, byte buffers, error handling, switching files, and custom renderers.
 
+## Try the demo
+
+This repository includes a local browser demo. It is not currently hosted as a public live demo. From a repository checkout, run:
+
+```sh
+npm ci
+npm run build
+npm run demo
+```
+
+Then open <http://127.0.0.1:4173/> and choose an image, DOCX, XLSX, or PPTX file.
+
+See [demo deployment instructions](./docs/demo-deployment.md) if you want to host it publicly.
+
 ## Supported formats
 
 | Format | Current implementation |
@@ -72,6 +89,8 @@ The flow is file source → bounded byte loading → signature/metadata detectio
 ## Browser and TypeScript requirements
 
 This is a browser package and uses browser DOM, `Blob`, `URL.createObjectURL`, `fetch`, and related APIs. The emitted JavaScript target is ES2022. The project does not yet publish a tested browser-version compatibility matrix. Development CI currently uses Node.js 22; a minimum supported development Node version has not been declared.
+
+The public API is framework-agnostic. The repository does not include verified Angular, React, or Vue adapters or framework-specific examples; use the browser lifecycle API from your framework's mount and cleanup hooks.
 
 ## Security and privacy
 
@@ -111,6 +130,8 @@ MIT. See [LICENSE](./LICENSE).
 
 - [Installation](./docs/installation.md)
 - [Getting started and examples](./docs/getting-started.md)
+- [Adoption and technical content plan](./docs/adoption.md)
+- [Demo deployment](./docs/demo-deployment.md)
 - [API reference](./docs/api-reference.md)
 - [Supported formats](./docs/format-support.md)
 - [Architecture](./docs/architecture.md)

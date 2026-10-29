@@ -27,4 +27,4 @@ These controls reduce exposure but do not make parsing risk-free. Browser-native
 
 ## Reporting a vulnerability
 
-This checkout does not yet have a configured GitHub repository or private reporting endpoint. Before a public repository is announced, maintainers should enable GitHub private vulnerability reporting or publish another monitored private contact method. Do not place an unpatched vulnerability or sensitive sample document in a public issue.
+The project is maintained in [dukeofwest/universal-file-preview](https://github.com/dukeofwest/universal-file-preview). Use [GitHub's private security advisory form](https://github.com/dukeofwest/universal-file-preview/security/advisories/new) when private vulnerability reporting is enabled. The setting has not been independently verified in this documentation update. If GitHub does not offer the private form, do not disclose the issue in a public tracker; first contact the repository maintainer privately to arrange a monitored secure channel. Do not attach confidential documents. See [SECURITY.md](../SECURITY.md) for the policy.
