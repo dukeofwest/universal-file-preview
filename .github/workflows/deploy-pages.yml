@@ -1,0 +1,64 @@
+name: Deploy framework demos to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            examples/angular/package-lock.json
+            examples/react/package-lock.json
+            examples/vue/package-lock.json
+      - name: Install core dependencies
+        run: npm ci
+      - name: Install Angular example dependencies
+        run: npm ci --prefix examples/angular
+      - name: Install React example dependencies
+        run: npm ci --prefix examples/react
+      - name: Install Vue example dependencies
+        run: npm ci --prefix examples/vue
+      - name: Build and test the core package
+        run: npm test
+      - name: Type-check the core package
+        run: npm run typecheck
+      - name: Build all framework applications and the Pages site
+        run: npm run build:pages
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload the static site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

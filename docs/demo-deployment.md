@@ -1,30 +1,34 @@
 # Demo deployment
 
-The repository includes a Node.js demo server and a synthetic SVG welcome screen. No public demo deployment is configured or claimed. The demo reads a selected file in the browser; it does not upload that file to the server.
+The GitHub Pages site combines independent Angular, React, and Vue applications. The landing page selects and embeds the actual compiled framework application. Each app installs and imports the published `@dukeofwest/universal-file-preview@0.1.1` package. Selected files are read in the browser and are not uploaded by these examples.
 
-## Run locally
+## GitHub Pages
 
-Use Node.js 22, matching CI:
+The GitHub Actions workflow at [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml) runs after pushes to `main` and can be started manually. It installs the core and example dependencies from their lockfiles, runs core tests and type checking, builds all three apps, uploads the static `site/` directory, and deploys it to GitHub Pages.
+
+For `dukeofwest/universal-file-preview`, the expected URL is <https://dukeofwest.github.io/universal-file-preview/>. The URL should be shared as live only after a successful deployment is visible in GitHub Actions and the `github-pages` environment.
+
+If Pages is not enabled for the repository:
+
+1. Open **Settings → Pages** in the GitHub repository.
+2. Set **Build and deployment → Source** to **GitHub Actions**.
+3. Push the workflow to `main` and wait for its deployment job, or run the workflow manually from the Actions tab.
+
+## Build and preview locally
+
+Use Node.js 22.22.3 or newer on the 22.x line (or 24.15 or newer). Install the root dependencies and each framework app's dependencies, then build and serve the Pages output:
 
 ```sh
 npm ci
-npm run build
-npm run demo
+npm ci --prefix examples/angular
+npm ci --prefix examples/react
+npm ci --prefix examples/vue
+npm run build:pages
+npm run preview:pages
 ```
 
-Open <http://127.0.0.1:4173/>. By default, the server listens only on loopback at port `4173`, as before.
+Open <http://127.0.0.1:4174/>. The examples use relative asset URLs and Angular's base href is `./` so the apps can be hosted below the repository's Pages path.
 
-## Deploy to a Node.js host
+## Existing package demo
 
-Use a Node.js host that can build from the repository and run a long-lived Node process. Configure the service with:
-
-- **Repository:** `dukeofwest/universal-file-preview`
-- **Runtime:** Node.js 22
-- **Build command:** `npm ci && npm run build`
-- **Start command:** `npm run demo`
-- **Host setting:** `HOST=0.0.0.0`
-- **Port setting:** use the port assigned by the hosting provider as `PORT`; do not hard-code a public port if the provider supplies one.
-
-The server validates `PORT` and keeps the existing `127.0.0.1:4173` default for local development. After the provider reports a deployment URL, verify the root page, select representative synthetic or properly licensed sample files, and check the browser console and network panel. Do not upload private user documents as demo fixtures. Add a public demo link to the README and npm release only after the deployment URL and its behavior have been verified.
-
-Deployment requires an account and configuration in the hosting provider. This repository does not contain provider credentials or an auto-deploy workflow.
+The original lightweight demo remains available locally with `npm run demo` at <http://127.0.0.1:4173/>. It serves the library's direct browser example and is separate from the Pages application.

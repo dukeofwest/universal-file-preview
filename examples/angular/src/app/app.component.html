@@ -1,0 +1,44 @@
+<main class="example-shell">
+  <header class="example-header">
+    <a class="back-link" href="../">← All framework examples</a>
+    <p class="eyebrow">Framework integration</p>
+    <h1>Angular file preview</h1>
+    <p class="intro">Preview supported images and Office Open XML files in your Angular app. Files are read locally in your browser and are never uploaded by this demo.</p>
+  </header>
+
+  <section
+    class="upload-card"
+    [class.is-dragging]="dragging"
+    (dragenter)="onDragEnter($event)"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave($event)"
+    (drop)="onDrop($event)"
+  >
+    <div class="upload-copy">
+      <strong>{{ fileName || 'Choose a file to preview' }}</strong>
+      <span>{{ busy ? 'Preparing local preview…' : 'Drop a file here, or browse your device.' }}</span>
+    </div>
+    <div class="upload-actions">
+      <label class="button button-primary">
+        Choose file
+        <input type="file" accept="image/*,.svg,.docx,.xlsx,.pptx" aria-label="Choose a file to preview" (change)="onFileChange($event)" />
+      </label>
+      <button *ngIf="fileName" class="button button-secondary" type="button" (click)="clearFile()">Clear</button>
+    </div>
+  </section>
+
+  <p *ngIf="error" class="error-message" role="alert">{{ error }}</p>
+  <section class="preview-card" aria-label="File preview">
+    <p *ngIf="busy" class="loading-message" role="status">Loading preview…</p>
+    <div *ngIf="!fileName" class="empty-state">
+      <span class="file-mark" aria-hidden="true">＋</span>
+      <strong>Your preview will appear here</strong>
+      <span>Try PNG, JPEG, GIF, WebP, SVG, DOCX, XLSX or PPTX.</span>
+    </div>
+    <div #previewHost class="preview-host"></div>
+  </section>
+  <footer class="example-footer">
+    <span>The preview toolbar includes zoom and original-file download controls.</span>
+    <a href="https://www.npmjs.com/package/@dukeofwest/universal-file-preview">npm package</a>
+  </footer>
+</main>

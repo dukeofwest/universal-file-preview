@@ -60,6 +60,8 @@
   "scripts": {
     "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', { recursive: true, force: true }))\"",
     "build": "tsc -p tsconfig.json",
+    "build:pages": "npm run build --prefix examples/angular && npm run build --prefix examples/react && npm run build --prefix examples/vue && node scripts/assemble-pages.mjs",
+    "preview:pages": "node apps/pages/server.mjs",
     "demo": "node apps/demo/server.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"

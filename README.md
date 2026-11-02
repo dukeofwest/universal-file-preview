@@ -3,6 +3,8 @@
 [![npm version](https://img.shields.io/npm/v/%40dukeofwest%2Funiversal-file-preview)](https://www.npmjs.com/package/@dukeofwest/universal-file-preview)
 [![MIT license](https://img.shields.io/github/license/dukeofwest/universal-file-preview)](./LICENSE)
 
+**[Open the Angular, React and Vue demo](https://dukeofwest.github.io/universal-file-preview/)** — available after GitHub Pages is set to GitHub Actions and the deployment workflow succeeds.
+
 Browser-based TypeScript previews for common image formats and selected content from DOCX, XLSX, and PPTX files. The library provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
 
 ## Features
@@ -50,9 +52,109 @@ Call `preview.destroy()` from the owning UI's cleanup hook when the viewer is re
 
 See [Getting started](./docs/getting-started.md) for remote files, byte buffers, error handling, switching files, and custom renderers.
 
+## Angular, React and Vue
+
+The framework examples are independent applications that consume the published npm package. They do not import the library source or add document-rendering dependencies. Each example uses a framework-managed element as the viewer container, passes a browser `File` to `FilePreviewer`, handles rejected loads, and calls `destroy()` when the viewer is cleared or the component is removed. Import the optional package stylesheet with `@dukeofwest/universal-file-preview/styles.css`.
+
+Install the package in the framework application:
+
+```sh
+npm install @dukeofwest/universal-file-preview
+```
+
+The public integration shape is the same in each framework:
+
+```ts
+import { FilePreviewer } from "@dukeofwest/universal-file-preview";
+
+const preview = new FilePreviewer({
+  container: previewElement,
+  file: { name: file.name, source: file, mimeType: file.type },
+});
+await preview.open();
+// On clear, replacement, or component teardown:
+preview.destroy();
+```
+
+In Angular, call this from a standalone component and destroy the instance in `ngOnDestroy`. In React, keep the host and instance in refs and destroy it from effect cleanup. In Vue 3, keep the instance in a `shallowRef` and destroy it in `onBeforeUnmount`. Catch errors from `open()` or `load()`; the viewer also displays its own loading and error status.
+
+### Angular quick start
+
+```ts
+import { Component, ElementRef, OnDestroy, ViewChild } from "@angular/core";
+import { FilePreviewer } from "@dukeofwest/universal-file-preview";
+
+@Component({ standalone: true, template: `<div #host></div>` })
+export class PreviewComponent implements OnDestroy {
+  @ViewChild("host", { static: true }) host!: ElementRef<HTMLDivElement>;
+  private preview: FilePreviewer | null = null;
+
+  async openFile(file: File): Promise<void> {
+    this.preview?.destroy();
+    this.preview = new FilePreviewer({ container: this.host.nativeElement, file: { name: file.name, source: file, mimeType: file.type } });
+    try { await this.preview.open(); } catch (error: unknown) { console.error("Preview failed", error); }
+  }
+
+  ngOnDestroy(): void { this.preview?.destroy(); }
+}
+```
+
+### React quick start
+
+```tsx
+import { useEffect, useRef } from "react";
+import { FilePreviewer } from "@dukeofwest/universal-file-preview";
+
+function Preview() {
+  const host = useRef<HTMLDivElement>(null);
+  const preview = useRef<FilePreviewer | null>(null);
+  useEffect(() => () => preview.current?.destroy(), []);
+
+  async function openFile(file: File): Promise<void> {
+    const container = host.current;
+    if (!container) return;
+    preview.current?.destroy();
+    const instance = new FilePreviewer({ container, file: { name: file.name, source: file, mimeType: file.type } });
+    preview.current = instance;
+    try { await instance.open(); } catch (error: unknown) { console.error("Preview failed", error); }
+  }
+
+  return <div ref={host} />;
+}
+```
+
+### Vue 3 quick start
+
+```ts
+import { onBeforeUnmount, ref, shallowRef } from "vue";
+import { FilePreviewer } from "@dukeofwest/universal-file-preview";
+
+const host = ref<HTMLDivElement | null>(null);
+const preview = shallowRef<FilePreviewer | null>(null);
+onBeforeUnmount(() => preview.value?.destroy());
+
+async function openFile(file: File): Promise<void> {
+  const container = host.value;
+  if (!container) return;
+  preview.value?.destroy();
+  const instance = new FilePreviewer({ container, file: { name: file.name, source: file, mimeType: file.type } });
+  preview.value = instance;
+  try { await instance.open(); } catch (error: unknown) { console.error("Preview failed", error); }
+}
+```
+
+- [Angular example and run instructions](./examples/angular/README.md)
+- [React example and run instructions](./examples/react/README.md)
+- [Vue example and run instructions](./examples/vue/README.md)
+- [Framework integration guide](./docs/framework-integrations.md)
+
+These are integration examples, not official framework adapter packages. See [format support](./docs/format-support.md) for the actual renderer coverage and limitations.
+
 ## Try the demo
 
-This repository includes a local browser demo. It is not currently hosted as a public live demo. From a repository checkout, run:
+The framework demo selector hosts the actual Angular, React, and Vue applications. The expected GitHub Pages address is [dukeofwest.github.io/universal-file-preview](https://dukeofwest.github.io/universal-file-preview/). The workflow must complete once after the changes are pushed before this URL becomes available.
+
+The existing local library demo can still be run from a repository checkout:
 
 ```sh
 npm ci
@@ -62,7 +164,7 @@ npm run demo
 
 Then open <http://127.0.0.1:4173/> and choose an image, DOCX, XLSX, or PPTX file.
 
-See [demo deployment instructions](./docs/demo-deployment.md) if you want to host it publicly.
+See [live demo and Pages setup](./docs/live-demo.md) for deployment status and the local framework site preview instructions.
 
 ## Supported formats
 
@@ -86,11 +188,11 @@ The package injects its scoped styles by default. Import `@dukeofwest/universal-
 
 The flow is file source → bounded byte loading → signature/metadata detection → format parser → typed document model → registered renderer → DOM/SVG output. `FilePreviewer` owns the lifecycle and common controls. The ZIP/DEFLATE reader and XML parser are project code; image codecs and DOM/fetch APIs are supplied by the browser. See [Architecture](./docs/architecture.md).
 
-## Browser and TypeScript requirements
+## Browser requirements and framework compatibility
 
 This is a browser package and uses browser DOM, `Blob`, `URL.createObjectURL`, `fetch`, and related APIs. The emitted JavaScript target is ES2022. The project does not yet publish a tested browser-version compatibility matrix. Development CI currently uses Node.js 22; a minimum supported development Node version has not been declared.
 
-The public API is framework-agnostic. The repository does not include verified Angular, React, or Vue adapters or framework-specific examples; use the browser lifecycle API from your framework's mount and cleanup hooks.
+The public API is framework-agnostic. The repository includes tested Angular, React, and Vue integration examples, but does not publish framework-specific adapter packages. Use the browser lifecycle API from your framework's mount and cleanup hooks. The examples build against the current published package version.
 
 ## Security and privacy
 
@@ -132,6 +234,8 @@ MIT. See [LICENSE](./LICENSE).
 - [Getting started and examples](./docs/getting-started.md)
 - [Adoption and technical content plan](./docs/adoption.md)
 - [Demo deployment](./docs/demo-deployment.md)
+- [Framework integrations](./docs/framework-integrations.md)
+- [Live framework demo](./docs/live-demo.md)
 - [API reference](./docs/api-reference.md)
 - [Supported formats](./docs/format-support.md)
 - [Architecture](./docs/architecture.md)

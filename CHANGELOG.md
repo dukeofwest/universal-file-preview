@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added published-package integration applications for Angular, React, and Vue, plus a unified GitHub Pages site and deployment workflow.
+- Documented framework lifecycle patterns, local Pages builds, and the required repository Pages setting.
 - Sharpened npm metadata to describe implemented browser previews and removed unverified framework/PDF-viewer keywords.
 - Updated package, security, and release documentation to reflect the published `0.1.1` package and current repository status.
 - Added a technical content and organic adoption plan with examples based on the public API.
