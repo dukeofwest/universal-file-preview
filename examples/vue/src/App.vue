@@ -75,7 +75,7 @@ onBeforeUnmount(() => previewer.value?.destroy());
     <header class="example-header">
       <a class="back-link" href="../">← All framework examples</a>
       <p class="eyebrow">Framework integration</p>
-      <h1>Vue file preview</h1>
+      <h1 class="typography-eyebrow-super">Vue file preview</h1>
       <p class="intro">Preview supported images and Office Open XML files in your Vue app. Files are read locally in your browser and are never uploaded by this demo.</p>
     </header>
 
