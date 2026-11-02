@@ -6,7 +6,7 @@ The GitHub Pages site combines independent Angular, React, and Vue applications.
 
 The GitHub Actions workflow at [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml) runs after pushes to `main` and can be started manually. It installs the core and example dependencies from their lockfiles, runs core tests and type checking, builds all three apps, uploads the static `site/` directory, and deploys it to GitHub Pages.
 
-For `dukeofwest/universal-file-preview`, the expected URL is <https://dukeofwest.github.io/universal-file-preview/>. The URL should be shared as live only after a successful deployment is visible in GitHub Actions and the `github-pages` environment.
+For `dukeofwest/universal-file-preview`, the live URL is <https://dukeofwest.github.io/universal-file-preview/>. It was checked on 2026-11-02 and serves the framework selector and compiled applications. Future changes should be treated as deployed only after a successful workflow run is visible in GitHub Actions and the `github-pages` environment.
 
 If Pages is not enabled for the repository:
 

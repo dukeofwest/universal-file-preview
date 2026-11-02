@@ -174,6 +174,38 @@ body{
 @media(max-width:600px){body{background-attachment:scroll}}
     :root{font-family:"SF Pro Display","SF Pro Icons","Helvetica Neue",Helvetica,Arial,sans-serif}
 .example-header h1.typography-eyebrow-super,.hero h1.typography-eyebrow-super{font-family:"SF Pro Display","SF Pro Icons","Helvetica Neue",Helvetica,Arial,sans-serif}
+.evaluation-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:16px;margin:0 0 16px}
+.evaluation-card,.format-card{border:1px solid #ffffff35;border-radius:20px;background:#fff;color:#1d1d1f;box-shadow:0 18px 48px #101c2a25}
+.evaluation-card{padding:21px}
+.evaluation-card h2,.format-card h2{margin:0;color:#1d1d1f;font-size:1.04rem;font-weight:700;letter-spacing:-.025em}
+.card-description{margin:8px 0 15px;color:#667085;font-size:.84rem;line-height:1.55}
+.install-command{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 9px 8px 14px;border:1px solid #e3e8ef;border-radius:12px;background:#f7f9fc}
+.install-command code{overflow:auto;color:#263545;font:600 .79rem ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;scrollbar-width:thin}
+.copy-install{flex-shrink:0;padding:7px 10px;border:0;border-radius:8px;background:#263545;color:#fff;font:inherit;font-size:.72rem;font-weight:600;cursor:pointer;transition:background .2s ease,transform .2s ease}
+.copy-install:hover{background:#3478f6;transform:translateY(-1px)}
+.copy-install:focus-visible,.sample-link:focus-visible,.star-link:focus-visible{outline:3px solid #80adff;outline-offset:3px}
+.resource-links{display:flex;flex-wrap:wrap;gap:16px;margin-top:15px}
+.resource-links a{color:#3478f6;font-size:.78rem;font-weight:650;text-decoration:none}
+.resource-links a:hover{text-decoration:underline;text-underline-offset:3px}
+.sample-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:15px}
+.sample-link{display:flex;align-items:center;gap:10px;min-width:0;padding:10px;border:1px solid #e3e8ef;border-radius:12px;color:#263545;text-decoration:none;transition:border-color .2s ease,background .2s ease,transform .2s ease}
+.sample-link:hover{transform:translateY(-1px);border-color:#a9c5f6;background:#f5f8ff}
+.sample-type{display:grid;place-items:center;flex-shrink:0;width:38px;height:38px;border-radius:10px;background:#edf3fd;color:#3478f6;font-size:.67rem;font-weight:750;letter-spacing:.02em}
+.sample-meta{display:grid;min-width:0;gap:3px}
+.sample-meta strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.76rem;font-weight:650}
+.sample-meta small{color:#7b8490;font-size:.68rem}
+.format-card{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:0 0 16px;padding:16px 21px}
+.format-copy{min-width:230px}
+.format-copy h2{font-size:.92rem}
+.format-copy p{margin:5px 0 0;color:#667085;font-size:.73rem;line-height:1.45}
+.format-groups{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:7px}
+.format-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#344054;font-size:.7rem;font-weight:600;white-space:nowrap}
+.format-pill strong{color:#1d1d1f}
+.format-pill.detect-only{border-color:#e8e2d9;background:#fbf9f6;color:#736857}
+.star-link{display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:8px 11px;border:1px solid #d5deeb;border-radius:999px;color:#344054;font-size:.76rem;font-weight:650;text-decoration:none;transition:border-color .2s ease,background .2s ease,transform .2s ease}
+.star-link:hover{transform:translateY(-1px);border-color:#9bb8eb;background:#f5f8ff}
+@media(max-width:850px){.evaluation-grid{grid-template-columns:1fr}.format-card{align-items:flex-start;flex-direction:column;gap:12px}.format-groups{justify-content:flex-start}}
+@media(max-width:600px){.sample-links{grid-template-columns:1fr}.evaluation-card{padding:17px}.format-card{padding:16px}.format-copy{min-width:0}.format-pill{white-space:normal}}
     </style>
   </head>
   <body>
@@ -193,6 +225,45 @@ body{
         <p class="hero-copy">Explore working integrations for Angular, React and Vue. Select a framework, then try the real app with your own supported file.</p>
         <p class="privacy-note"><span class="privacy-dot" aria-hidden="true"></span>Files stay in your browser. This demo does not upload them.</p>
       </header>
+
+      <section class="evaluation-grid" aria-label="Get started and download samples">
+        <article class="evaluation-card">
+          <h2>Start with one command</h2>
+          <p class="card-description">Install the framework-independent TypeScript library, then connect it to your app's file input.</p>
+          <div class="install-command">
+            <code id="install-command">npm install @dukeofwest/universal-file-preview</code>
+            <button id="copy-install" class="copy-install" type="button">Copy</button>
+          </div>
+          <div class="resource-links">
+            <a href="https://www.npmjs.com/package/@dukeofwest/universal-file-preview">View package on npm</a>
+            <a href="https://github.com/dukeofwest/universal-file-preview/tree/main/docs">Read integration docs</a>
+          </div>
+          <a class="star-link" href="https://github.com/dukeofwest/universal-file-preview">Star this project on GitHub</a>
+        </article>
+
+        <article class="evaluation-card">
+          <h2>Try a sample file</h2>
+          <p class="card-description">Download a small file and open it in any of the Angular, React, or Vue examples.</p>
+          <div class="sample-links">
+            <a class="sample-link" href="./samples/sample-illustration.svg" download><span class="sample-type" aria-hidden="true">SVG</span><span class="sample-meta"><strong>Illustration</strong><small>Image sample</small></span></a>
+            <a class="sample-link" href="./samples/sample-report.docx" download><span class="sample-type" aria-hidden="true">DOCX</span><span class="sample-meta"><strong>Product brief</strong><small>Word sample</small></span></a>
+            <a class="sample-link" href="./samples/sample-workbook.xlsx" download><span class="sample-type" aria-hidden="true">XLSX</span><span class="sample-meta"><strong>Overview</strong><small>Workbook sample</small></span></a>
+            <a class="sample-link" href="./samples/sample-deck.pptx" download><span class="sample-type" aria-hidden="true">PPTX</span><span class="sample-meta"><strong>File preview</strong><small>Slide sample</small></span></a>
+          </div>
+        </article>
+      </section>
+
+      <section class="format-card" aria-labelledby="supported-formats-title">
+        <div class="format-copy">
+          <h2 id="supported-formats-title">Supported preview formats</h2>
+          <p>Office documents render supported subsets; visual fidelity and feature coverage vary by file.</p>
+        </div>
+        <div class="format-groups" aria-label="Format support summary">
+          <span class="format-pill"><strong>Images</strong> PNG · JPEG · GIF · WebP · SVG</span>
+          <span class="format-pill"><strong>Office preview</strong> DOCX · XLSX · PPTX</span>
+          <span class="format-pill detect-only"><strong>Detection only</strong> PDF · DOC · XLS · PPT</span>
+        </div>
+      </section>
 
       <section class="demo-layout" aria-label="Framework demonstrations">
         <aside class="framework-panel">
@@ -231,6 +302,18 @@ body{
       </footer>
     </main>
     <script>
+      const copyButton = document.querySelector("#copy-install");
+      const installCommand = document.querySelector("#install-command");
+      copyButton?.addEventListener("click", async () => {
+        if (!installCommand) return;
+        try {
+          await navigator.clipboard.writeText(installCommand.textContent || "");
+          copyButton.textContent = "Copied";
+        } catch {
+          copyButton.textContent = "Select command";
+        }
+        window.setTimeout(() => { copyButton.textContent = "Copy"; }, 1800);
+      });
       const buttons = [...document.querySelectorAll("[data-framework]")];
       const frame = document.querySelector("#demo-frame");
       const title = document.querySelector("#frame-title");

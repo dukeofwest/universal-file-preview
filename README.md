@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/%40dukeofwest%2Funiversal-file-preview)](https://www.npmjs.com/package/@dukeofwest/universal-file-preview)
 [![MIT license](https://img.shields.io/github/license/dukeofwest/universal-file-preview)](./LICENSE)
 
-**[Open the Angular, React and Vue demo](https://dukeofwest.github.io/universal-file-preview/)** — available after GitHub Pages is set to GitHub Actions and the deployment workflow succeeds.
+**[Open the live Angular, React and Vue demo](https://dukeofwest.github.io/universal-file-preview/)** — try a framework integration with your own file or download a sample document.
 
 Browser-based TypeScript previews for common image formats and selected content from DOCX, XLSX, and PPTX files. The library provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
 
@@ -152,7 +152,7 @@ These are integration examples, not official framework adapter packages. See [fo
 
 ## Try the demo
 
-The framework demo selector hosts the actual Angular, React, and Vue applications. The expected GitHub Pages address is [dukeofwest.github.io/universal-file-preview](https://dukeofwest.github.io/universal-file-preview/). The workflow must complete once after the changes are pushed before this URL becomes available.
+The framework demo selector hosts the actual Angular, React, and Vue applications at [dukeofwest.github.io/universal-file-preview](https://dukeofwest.github.io/universal-file-preview/). The live site includes downloadable sample files so you can try each example without preparing your own documents.
 
 The existing local library demo can still be run from a repository checkout:
 
