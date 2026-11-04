@@ -78,15 +78,24 @@ export class PackageReader {
    * bytes invalid in the detected encoding are invalid-file. The byte-order mark is removed.
    */
   readText(path: string): string {
-    const name = normalize(path), bytes = this.readBytes(name);
-    const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? "utf-16le" : bytes[0] === 0xfe && bytes[1] === 0xff ? "utf-16be" : "utf-8";
-    let text: string;
-    try { text = new TextDecoder(encoding, { fatal: true }).decode(bytes); }
-    catch (cause) { throw new PreviewError(`Package part ${name} is not valid ${encoding.toUpperCase()} text.`, "invalid-file", { cause }); }
-    const declared = encodingDeclaration.exec(text)?.[2];
-    if (declared !== undefined && !supportedEncodings.has(declared.trim().toLowerCase())) throw new PreviewError(`Package part ${name} uses the unsupported encoding ${declared}.`, "unsupported-feature");
-    return text;
+    const name = normalize(path);
+    return decodeXmlText(this.readBytes(name), `Package part ${name}`);
   }
+}
+
+/**
+ * Decodes XML bytes with the readText rules (also used for whole flat OpenDocument files):
+ * UTF-8 by default, UTF-16 by byte-order mark, fatal decoding, and only UTF-8 or UTF-16 as a
+ * declared encoding. `subject` starts the error messages, e.g. "Package part content.xml".
+ */
+export function decodeXmlText(bytes: Uint8Array, subject: string): string {
+  const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? "utf-16le" : bytes[0] === 0xfe && bytes[1] === 0xff ? "utf-16be" : "utf-8";
+  let text: string;
+  try { text = new TextDecoder(encoding, { fatal: true }).decode(bytes); }
+  catch (cause) { throw new PreviewError(`${subject} is not valid ${encoding.toUpperCase()} text.`, "invalid-file", { cause }); }
+  const declared = encodingDeclaration.exec(text)?.[2];
+  if (declared !== undefined && !supportedEncodings.has(declared.trim().toLowerCase())) throw new PreviewError(`${subject} uses the unsupported encoding ${declared}.`, "unsupported-feature");
+  return text;
 }
 
 /** Same normalisation as ZipArchive: no leading slash, single separators. */
