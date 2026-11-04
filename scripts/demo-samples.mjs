@@ -135,6 +135,68 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
   <path d="M850 397h152v32H850z" fill="#3478f6"/><path d="M873 323h107v74H873z" fill="#fff" stroke="#c9d8ea" stroke-width="3"/><path d="M897 348h58M897 364h42" stroke="#8c9eb2" stroke-width="7" stroke-linecap="round"/><text x="160" y="615" fill="#40536a" font-family="Arial,sans-serif" font-size="24" font-weight="600">Sample SVG · decoded by the browser</text>
 </svg>`;
 
+// OpenDocument spreadsheet sample: EUR amounts and percentages with saved display text, and
+// totals whose formula results are saved (shown as saved; never recalculated by the viewer).
+const EURO = String.fromCharCode(0x20ac);
+const odfNamespaces = [
+  'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"', 'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"',
+  'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"', 'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"',
+  'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"', 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"',
+  'xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"', 'xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2"',
+  'xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"',
+].join(" ");
+const odsText = (text, style = "") => `<table:table-cell${style ? ` table:style-name="${style}"` : ""} office:value-type="string" calcext:value-type="string"><text:p>${text}</text:p></table:table-cell>`;
+const odsFloat = (value, text, style = "ce3", formula = "") => `<table:table-cell table:style-name="${style}"${formula ? ` table:formula="${formula}"` : ""} office:value-type="float" office:value="${value}" calcext:value-type="float"><text:p>${text}</text:p></table:table-cell>`;
+const odsMoney = (value, text, style = "ce3", formula = "") => `<table:table-cell table:style-name="${style}"${formula ? ` table:formula="${formula}"` : ""} office:value-type="currency" office:currency="EUR" office:value="${value}" calcext:value-type="currency"><text:p>${text} ${EURO}</text:p></table:table-cell>`;
+const odsPercent = (value, text, style = "ce3") => `<table:table-cell table:style-name="${style}" office:value-type="percentage" office:value="${value}" calcext:value-type="percentage"><text:p>${text}</text:p></table:table-cell>`;
+const ods = {
+  mimetype: "application/vnd.oasis.opendocument.spreadsheet",
+  "META-INF/manifest.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>`,
+  "meta.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta ${odfNamespaces} office:version="1.3"><office:meta><meta:generator>UniversalFilePreview/demo</meta:generator></office:meta></office:document-meta>`,
+  "styles.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles ${odfNamespaces} office:version="1.3">
+  <office:font-face-decls><style:font-face style:name="Liberation Sans" svg:font-family="'Liberation Sans'"/></office:font-face-decls>
+  <office:styles>
+    <style:default-style style:family="table-cell"><style:text-properties style:font-name="Liberation Sans" fo:font-size="10pt" fo:language="en" fo:country="GB"/></style:default-style>
+    <style:style style:name="Default" style:family="table-cell"/>
+  </office:styles>
+</office:document-styles>`,
+  "content.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content ${odfNamespaces} office:version="1.3">
+  <office:automatic-styles>
+    <style:style style:name="co1" style:family="table-column"><style:table-column-properties style:column-width="4.6cm"/></style:style>
+    <style:style style:name="co2" style:family="table-column"><style:table-column-properties style:column-width="3.2cm"/></style:style>
+    <style:style style:name="ro1" style:family="table-row"><style:table-row-properties style:row-height="0.62cm"/></style:style>
+    <style:style style:name="ce1" style:family="table-cell" style:parent-style-name="Default"><style:table-cell-properties fo:background-color="#2365c7" fo:border="0.06pt solid #1a4f9c" style:vertical-align="middle"/><style:text-properties fo:color="#ffffff" fo:font-weight="bold"/></style:style>
+    <style:style style:name="ce2" style:family="table-cell" style:parent-style-name="Default"><style:table-cell-properties fo:border-bottom="0.06pt solid #c8cdd3" style:vertical-align="middle"/></style:style>
+    <style:style style:name="ce3" style:family="table-cell" style:parent-style-name="ce2"/>
+    <style:style style:name="ce4" style:family="table-cell" style:parent-style-name="Default"><style:table-cell-properties fo:border-top="1.5pt solid #20242a" fo:background-color="#eef3fb" style:vertical-align="middle"/><style:text-properties fo:font-weight="bold"/></style:style>
+  </office:automatic-styles>
+  <office:body><office:spreadsheet>
+    <table:table table:name="Quarterly results">
+      <table:table-column table:style-name="co1"/><table:table-column table:style-name="co2" table:number-columns-repeated="3"/>
+      <table:table-row table:style-name="ro1">${odsText("Product", "ce1")}${odsText("Units", "ce1")}${odsText("Revenue", "ce1")}${odsText("Growth", "ce1")}</table:table-row>
+      <table:table-row table:style-name="ro1">${odsText("Preview toolkit", "ce2")}${odsFloat(1240, "1,240")}${odsMoney(18600, "18,600.00")}${odsPercent(0.184, "18.4%")}</table:table-row>
+      <table:table-row table:style-name="ro1">${odsText("Images", "ce2")}${odsFloat(310, "310")}${odsMoney(4650, "4,650.00")}${odsPercent(0.12, "12.0%")}</table:table-row>
+      <table:table-row table:style-name="ro1">${odsText("OpenDocument", "ce2")}${odsFloat(95, "95")}${odsMoney(1425.5, "1,425.50")}${odsPercent(0.075, "7.5%")}</table:table-row>
+      <table:table-row table:style-name="ro1">${odsText("Total", "ce4")}${odsFloat(1645, "1,645", "ce4", "of:=SUM([.B2:.B4])")}${odsMoney(24675.5, "24,675.50", "ce4", "of:=SUM([.C2:.C4])")}<table:table-cell table:style-name="ce4"/></table:table-row>
+    </table:table>
+    <table:table table:name="Notes">
+      <table:table-column table:style-name="co1" table:number-columns-repeated="2"/>
+      <table:table-row>${odsText("Prepared")}<table:table-cell office:value-type="date" office:date-value="2026-10-28" calcext:value-type="date"><text:p>28 Oct 2026</text:p></table:table-cell></table:table-row>
+      <table:table-row>${odsText("Source")}${odsText("OpenDocument spreadsheet, rendered in the browser")}</table:table-row>
+    </table:table>
+  </office:spreadsheet></office:body>
+</office:document-content>`,
+};
+
 function makeZip(entries) {
   const localParts = [];
   const centralParts = [];
@@ -142,16 +204,18 @@ function makeZip(entries) {
   for (const [name, value] of Object.entries(entries)) {
     const nameBytes = Buffer.from(name);
     const raw = Buffer.from(value);
-    const compressed = deflateRawSync(raw);
+    // OpenDocument requires its "mimetype" entry to be stored uncompressed (ODF 1.3 Part 2 §3.3).
+    const method = name === "mimetype" ? 0 : 8;
+    const compressed = method ? deflateRawSync(raw) : raw;
     const crc = crc32(raw);
     const local = Buffer.alloc(30 + nameBytes.length + compressed.length);
     local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x800, 6);
-    local.writeUInt16LE(8, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt16LE(method, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(compressed.length, 18);
     local.writeUInt32LE(raw.length, 22); local.writeUInt16LE(nameBytes.length, 26); nameBytes.copy(local, 30); compressed.copy(local, 30 + nameBytes.length);
     localParts.push(local);
     const central = Buffer.alloc(46 + nameBytes.length);
     central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt16LE(0x800, 8);
-    central.writeUInt16LE(8, 10); central.writeUInt32LE(crc, 16); central.writeUInt32LE(compressed.length, 20);
+    central.writeUInt16LE(method, 10); central.writeUInt32LE(crc, 16); central.writeUInt32LE(compressed.length, 20);
     central.writeUInt32LE(raw.length, 24); central.writeUInt16LE(nameBytes.length, 28); central.writeUInt32LE(localOffset, 42); nameBytes.copy(central, 46);
     centralParts.push(central);
     localOffset += local.length;
@@ -181,5 +245,6 @@ export async function writeDemoSamples(outputDirectory) {
     writeFile(resolve(directory, "sample-report.docx"), makeZip(docx)),
     writeFile(resolve(directory, "sample-workbook.xlsx"), makeZip(xlsx)),
     writeFile(resolve(directory, "sample-deck.pptx"), makeZip(pptx)),
+    writeFile(resolve(directory, "sample-spreadsheet.ods"), makeZip(ods)),
   ]);
 }

@@ -1,0 +1,56 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { OdsRenderer } from "../dist/renderers/ods-renderer.js";
+import { RendererRegistry, createDefaultRendererRegistry } from "../dist/renderers/registry.js";
+import { detectFormat } from "../dist/detection/detect-format.js";
+import { parseOds } from "../dist/parsers/odf/ods.js";
+import { writeDemoSamples } from "../scripts/demo-samples.mjs";
+
+// Milestone M12: ODS and OTS reach the shared workbook renderer through the default registry.
+// Rendering itself needs a browser DOM and is covered by scripts/browser-regression.mjs.
+test("OdsRenderer handles ods and ots only", () => {
+  assert.deepEqual(new OdsRenderer().formats, ["ods", "ots"]);
+});
+
+test("the default registry routes ods and ots to OdsRenderer without disturbing other formats", () => {
+  const registry = createDefaultRendererRegistry();
+  assert.ok(registry.get("ods") instanceof OdsRenderer);
+  assert.equal(registry.get("ods"), registry.get("ots"), "one renderer instance serves both formats");
+  assert.equal(registry.get("fods"), undefined, "flat ODS arrives in a later milestone");
+  assert.equal(registry.get("pdf"), undefined);
+  for (const format of ["xlsx", "docx", "pptx", "png", "svg"]) assert.ok(registry.get(format), `${format} is still registered`);
+  assert.throws(() => registry.register(new OdsRenderer()), /already registered for ods/);
+  const fresh = new RendererRegistry();
+  const unregister = fresh.register(new OdsRenderer());
+  unregister();
+  assert.equal(fresh.get("ods"), undefined);
+});
+
+test("ODS internals are not exported by the package", async () => {
+  const entry = await import("../dist/index.js");
+  for (const name of ["OdsRenderer", "parseOds", "renderWorkbook"]) assert.equal(name in entry, false, `${name} is internal per decision D2`);
+});
+
+test("the demo ODS sample is detected and parsed with saved display text", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "ufp-ods-demo-"));
+  try {
+    await writeDemoSamples(directory);
+    const bytes = new Uint8Array(readFileSync(join(directory, "sample-spreadsheet.ods")));
+    assert.equal(new TextDecoder().decode(bytes.subarray(30, 38)), "mimetype", "mimetype is the first entry");
+    assert.equal(bytes[8] | (bytes[9] << 8), 0, "mimetype is stored uncompressed");
+    assert.equal(detectFormat("sample-spreadsheet.ods", "", bytes), "ods");
+    const workbook = parseOds(bytes, "sample-spreadsheet.ods");
+    assert.deepEqual(workbook.sheets.map(sheet => sheet.name), ["Quarterly results", "Notes"]);
+    const cell = ref => workbook.sheets[0].cells.find(entry => entry.ref === ref);
+    assert.deepEqual(cell("C2").data.value, { kind: "currency", lexical: "18600", number: 18600, currency: "EUR" });
+    assert.equal(cell("C2").display, `18,600.00 ${String.fromCharCode(0x20ac)}`);
+    assert.equal(cell("D4").display, "7.5%");
+    assert.equal(cell("C5").data.value.number, 24675.5, "the saved formula result, not a recalculation");
+    assert.deepEqual(workbook.diagnostics.map(entry => entry.code), ["odf.formula.cached"]);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
