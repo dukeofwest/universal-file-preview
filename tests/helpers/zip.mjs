@@ -1,4 +1,6 @@
-import { deflateRawSync } from "node:zlib";
+import * as zlib from "node:zlib";
+
+const { deflateRawSync } = zlib, zlibCrc32 = zlib.crc32;
 
 /** `stored` lists entry names that stay uncompressed when `deflate` is true (e.g. an ODF "mimetype"). */
 export function makeZip(entries, { deflate = false, stored = [] } = {}) {
@@ -26,6 +28,8 @@ export function makeZip(entries, { deflate = false, stored = [] } = {}) {
 }
 
 export function crc32(bytes) {
+  // Node 22.2+ provides the same CRC-32 natively; the loop below is the fallback.
+  if (typeof zlibCrc32 === "function") return zlibCrc32(bytes) >>> 0;
   let crc = 0xffffffff;
   for (const byte of bytes) { crc ^= byte; for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0); }
   return (crc ^ 0xffffffff) >>> 0;

@@ -135,7 +135,8 @@ export function createStyleResolver(stylesXml: NsXmlNode | undefined, automaticS
     styles, defaultFont,
     ...(locale !== undefined ? { locale } : {}),
     cellStyleIndex(name) {
-      if (name === undefined) return 0;
+      // styles[0] already is the default style merged with the common "Default" style.
+      if (name === undefined || (name === "Default" && defaultResolved)) return 0;
       const known = cellIndexes.get(name);
       if (known !== undefined) return known;
       const resolved = resolve("table-cell", name);

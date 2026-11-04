@@ -64,3 +64,19 @@ export function makeOdfPackage({ mimetype = ODS_MEDIA_TYPE, manifest = "auto", c
 
 /** Minimal spreadsheet content.xml. */
 export const minimalContent = odfXml('<?xml version="1.0" encoding="UTF-8"?><office:document-content office:version="1.3"><office:body><office:spreadsheet/></office:body></office:document-content>');
+
+/** A spreadsheet content.xml; `body` is the office:spreadsheet content (tables, settings), written with canonical prefixes. */
+export function spreadsheetContent({ body, automatic = "", fontFaces = "", version = "1.3" }, prefixes = {}) {
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document-content office:version="${version}"><office:font-face-decls>${fontFaces}</office:font-face-decls><office:automatic-styles>${automatic}</office:automatic-styles><office:body><office:spreadsheet>${body}</office:spreadsheet></office:body></office:document-content>`, prefixes);
+}
+
+/** A LibreOffice-like styles.xml with a default cell style (Liberation Sans 10 pt, en-US) plus `styles`. */
+export function spreadsheetStyles({ styles = "", language = "en", country = "US" } = {}, prefixes = {}) {
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document-styles office:version="1.3"><office:font-face-decls><style:font-face style:name="Liberation Sans" svg:font-family="'Liberation Sans'"/></office:font-face-decls><office:styles><style:default-style style:family="table-cell"><style:text-properties style:font-name="Liberation Sans" fo:font-size="10pt" fo:language="${language}" fo:country="${country}"/></style:default-style><style:style style:name="Default" style:family="table-cell"/>${styles}</office:styles></office:document-styles>`, prefixes);
+}
+
+/** A complete .ods package from spreadsheetContent/spreadsheetStyles options. */
+export function makeOds({ body, automatic, fontFaces, styles, generator = "LibreOffice/24.8.4.2$Windows_X86_64 LibreOffice_project/test", extra, mimetype, manifest } = {}, prefixes = {}) {
+  const meta = odfXml(`<office:document-meta office:version="1.3"><office:meta><meta:generator>${generator}</meta:generator></office:meta></office:document-meta>`, prefixes);
+  return makeOdfPackage({ content: spreadsheetContent({ body, automatic, fontFaces }, prefixes), styles: spreadsheetStyles({ styles }, prefixes), meta, ...(extra ? { extra } : {}), ...(mimetype ? { mimetype } : {}), ...(manifest !== undefined ? { manifest } : {}) });
+}
