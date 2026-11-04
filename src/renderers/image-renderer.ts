@@ -28,6 +28,10 @@ export class ImageRenderer implements FileRenderer {
 
 const svgElements = new Set(["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "linearGradient", "radialGradient", "stop", "clipPath", "mask", "title", "desc"]);
 const svgAttributes = new Set(["xmlns", "viewBox", "width", "height", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "d", "points", "fill", "fill-rule", "fill-opacity", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-opacity", "opacity", "transform", "font-family", "font-size", "font-weight", "text-anchor", "stop-color", "stop-opacity", "offset", "clip-path", "mask", "preserveAspectRatio", "id"]);
+/** A reference to an element inside the same SVG, such as url(#gradient). It cannot name anything external. */
+const localReference = /^url\(#[A-Za-z0-9_.:-]+\)$/;
+/** Attributes that may hold a local reference. For clip-path and mask it is the only accepted value. */
+const referenceAttributes = new Set(["clip-path", "mask", "fill", "stroke"]);
 function sanitizeSvg(bytes: Uint8Array): Uint8Array {
   const source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   const parsed = new DOMParser().parseFromString(source, "image/svg+xml");
@@ -39,9 +43,11 @@ function sanitizeSvg(bytes: Uint8Array): Uint8Array {
       clean(child);
     }
     for (const attribute of [...node.attributes]) {
-      if (!svgAttributes.has(attribute.name) || /^on/i.test(attribute.name)) { node.removeAttribute(attribute.name); continue; }
-      if (["clip-path", "mask"].includes(attribute.name) && !/^url\(#[A-Za-z0-9_.:-]+\)$/.test(attribute.value)) node.removeAttribute(attribute.name);
-      if (/url\(|javascript:|data:|https?:/i.test(attribute.value) && !["clip-path", "mask"].includes(attribute.name)) node.removeAttribute(attribute.name);
+      const { name, value } = attribute;
+      if (!svgAttributes.has(name) || /^on/i.test(name)) { node.removeAttribute(name); continue; }
+      // Gradient fills and strokes such as fill="url(#bg)" stay; any other url(), script or remote value is removed.
+      if (referenceAttributes.has(name) && localReference.test(value)) continue;
+      if (name === "clip-path" || name === "mask" || /url\(|javascript:|data:|https?:/i.test(value)) node.removeAttribute(name);
     }
   };
   clean(root);
