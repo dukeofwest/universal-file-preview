@@ -10,6 +10,7 @@ import { streamXml, type StartAction, type XmlStartElement } from "../../xml/xml
 import { columnName } from "../xlsx.js";
 import { EXT, FORMULA_NAMESPACES, ODF } from "./namespaces.js";
 import { formatOdfValue, sameDisplayText, type OdfNumberFormat } from "./number-styles.js";
+import { applyViewHints, readViewHints } from "./settings.js";
 import { createStyleResolver, type OdfStyleResolver } from "./styles.js";
 import { annotationText, cellHyperlink, cellRuns, savedCellText } from "./text.js";
 import { DEFAULT_NULL_DATE, readCellValue } from "./values.js";
@@ -76,16 +77,37 @@ export function parseOds(bytes: Uint8Array, name: string, options: OdsParseOptio
   if (content.missingResults) collector.report("odf.formula.missing-result", { count: content.missingResults });
   if (content.precisionAsShown) collector.report("odf.precision-as-shown");
 
+  const activeSheet = viewSettings(reader, sheets, collector, options.signal);
   const resolver = content.resolver();
   const locale = resolver.locale;
   return {
     kind: "workbook", title: name, sheets,
+    ...(activeSheet !== undefined ? { activeSheet } : {}),
     styles: resolver.styles, defaultFont: resolver.defaultFont,
     source: { format, ...(producer ? { producer } : {}), ...(content.formatVersion ? { formatVersion: content.formatVersion } : {}), ...(locale ? { locale } : {}) },
     calculation: { nullDate: content.nullDate, ...(content.precisionAsShown ? { precisionAsShown: true } : {}) },
     ...(content.names.length ? { names: content.names } : {}),
     diagnostics: collector.list(),
   };
+}
+
+/**
+ * settings.xml view hints (milestone M14): optional and best-effort, so a part that cannot be read
+ * or parsed is reported as `odf.settings.ignored` (info) and the defaults apply. Cancellation
+ * still stops the preview.
+ */
+function viewSettings(reader: PackageReader, sheets: ExtendedWorksheet[], collector: DiagnosticCollector, signal: AbortSignal | undefined): number | undefined {
+  if (!reader.has("settings.xml")) return undefined;
+  let root: NsXmlNode;
+  try { root = parseXmlNs(reader.readText("settings.xml"), signal ? { signal } : undefined); }
+  catch (error) {
+    if (error instanceof PreviewError && error.code === "aborted") throw error;
+    collector.report("odf.settings.ignored", { part: "settings.xml" });
+    return undefined;
+  }
+  const settings = root.uri === ODF.office && root.local === "document-settings" ? nsFirst(root, ODF.office, "settings") : undefined;
+  if (!settings) { collector.report("odf.settings.ignored", { part: "settings.xml" }); return undefined; }
+  return applyViewHints(sheets, readViewHints(settings, collector), collector);
 }
 
 function resolveLimits(overrides: Partial<OdsLimits> | undefined): OdsLimits {
