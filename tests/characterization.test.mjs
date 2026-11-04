@@ -64,7 +64,7 @@ const detectionCases = [
   ["WebP RIFF container", "x.bin", "", concat(ascii("RIFF"), bytes(0, 0, 0, 0), ascii("WEBPVP8 ")), "webp"],
   ["SVG root element", "x.bin", "", utf8('<svg xmlns="http://www.w3.org/2000/svg"></svg>'), "svg"],
   ["SVG after an XML declaration", "x.bin", "", utf8('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"></svg>'), "svg"],
-  ["SVG after a UTF-8 BOM and whitespace", "x.bin", "", utf8("﻿  <svg></svg>"), "svg"],
+  ["SVG after a UTF-8 BOM and whitespace", "x.bin", "", utf8("\uFEFF  <svg></svg>"), "svg"],
   ["PNG signature beats .svg extension", "a.svg", "", PNG, "png"],
   ["JPEG signature beats .png extension", "image.png", "", JPEG, "jpeg"],
 
@@ -203,7 +203,7 @@ test("M0 parseXml names: prefixed attribute keys, prefix-blind localName and ele
 test("M0 parseXml whitespace, comments, processing instructions, BOM and CDATA", () => {
   assert.deepEqual(parseXml("<a> <b/> </a>").children.map(child => typeof child === "string" ? child : child.name), [" ", "b", " "]);
   assert.deepEqual(parseXml("<?xml version='1.0'?><!-- c --><a><?pi x?><!--d--></a>").children, []);
-  assert.equal(parseXml("﻿<a/>").name, "a");
+  assert.equal(parseXml("\uFEFF<a/>").name, "a");
   assert.equal(parseXml("  <a/>  \n").name, "a");
   assert.equal(textContent(parseXml("<a><![CDATA[<raw>]]></a>")), "<raw>");
   // Attribute values are not whitespace-normalised (XML 1.0 §3.3.3 is not applied).
