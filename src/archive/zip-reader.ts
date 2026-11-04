@@ -84,11 +84,18 @@ export class ZipArchive {
 function normalizePath(path: string): string { return path.replace(/^\/+/, "").replace(/\/+/g, "/"); }
 function readU16(bytes: Uint8Array, offset: number): number { return bytes[offset]! | (bytes[offset + 1]! << 8); }
 function readU32(bytes: Uint8Array, offset: number): number { return (bytes[offset]! | (bytes[offset + 1]! << 8) | (bytes[offset + 2]! << 16) | (bytes[offset + 3]! << 24)) >>> 0; }
-function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
+/** CRC-32 (ISO-HDLC, as used by ZIP), one table lookup per byte. */
+const crcTable = (() => {
+  const table = new Int32Array(256);
+  for (let byte = 0; byte < 256; byte++) {
+    let crc = byte;
     for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    table[byte] = crc;
   }
-  return (crc ^ 0xffffffff) >>> 0;
+  return table;
+})();
+export function crc32(bytes: Uint8Array): number {
+  let crc = -1;
+  for (let index = 0; index < bytes.length; index++) crc = crcTable[(crc ^ bytes[index]!) & 0xff]! ^ (crc >>> 8);
+  return (crc ^ -1) >>> 0;
 }
