@@ -25,7 +25,17 @@ export class XlsxRenderer implements FileRenderer {
   readonly formats: readonly FileFormat[] = ["xlsx"];
   render({ bytes, file }: RendererContext): RendererInstance {
     const locale = typeof navigator !== "undefined" && navigator.language ? navigator.language : "en-US";
-    const workbook = parseXlsx(bytes, file.name, { locale }), root = document.createElement("div"); root.className = "ufp-sheet-view";
+    return renderWorkbook(parseXlsx(bytes, file.name, { locale }), { locale });
+  }
+}
+
+/**
+ * Renders a parsed workbook as a tabbed, absolutely positioned grid. Shared by every
+ * spreadsheet format so parsing and rendering stay separate (implementation specification
+ * AD-3, milestone M9a). Internal: not exported from the package entry point (decision D2).
+ */
+export function renderWorkbook(workbook: Workbook, options: { locale: string }): RendererInstance {
+    const { locale } = options, root = document.createElement("div"); root.className = "ufp-sheet-view";
     const tabBar = document.createElement("div"); tabBar.className = "ufp-sheet-tabs"; tabBar.setAttribute("role", "tablist");
     const viewport = document.createElement("div"); viewport.className = "ufp-grid-viewport";
     root.append(tabBar, viewport);
@@ -52,7 +62,6 @@ export class XlsxRenderer implements FileRenderer {
       fitToWidth() { zoom = 1; view?.setZoom(1); },
       destroy() { view?.destroy(); tabBar.replaceChildren(); viewport.replaceChildren(); },
     };
-  }
 }
 
 class SheetView {
