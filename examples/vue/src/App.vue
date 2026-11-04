@@ -94,7 +94,7 @@ onBeforeUnmount(() => previewer.value?.destroy());
       <div class="upload-actions">
         <label class="button button-primary">
           Choose file
-          <input ref="input" type="file" accept="image/*,.svg,.docx,.xlsx,.pptx" @change="onFileChange" />
+          <input ref="input" type="file" accept="image/*,.svg,.docx,.xlsx,.pptx,.ods,.ots,.fods" @change="onFileChange" />
         </label>
         <button v-if="fileName" class="button button-secondary" type="button" @click="clearFile">Clear</button>
       </div>
@@ -106,7 +106,7 @@ onBeforeUnmount(() => previewer.value?.destroy());
       <div v-if="!fileName" class="empty-state">
         <span class="file-mark" aria-hidden="true">＋</span>
         <strong>Your preview will appear here</strong>
-        <span>Try PNG, JPEG, GIF, WebP, SVG, DOCX, XLSX or PPTX.</span>
+        <span>Try PNG, JPEG, GIF, WebP, SVG, DOCX, XLSX, PPTX or ODS.</span>
       </div>
       <div ref="previewHost" class="preview-host" />
     </section>

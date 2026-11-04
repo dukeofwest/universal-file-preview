@@ -1,6 +1,6 @@
 # Angular integration example
 
-A small standalone Angular 22 application using the published `@dukeofwest/universal-file-preview` package (`0.1.1`). The example uses strict TypeScript and a standalone component. It does not import the library source from this repository.
+A small standalone Angular 22 application using the published `@dukeofwest/universal-file-preview` package (`0.2.0`). The example uses strict TypeScript and a standalone component. It does not import the library source from this repository.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ npm install
 npm start
 ```
 
-Open the local URL printed by Angular CLI. Use **Choose file** or drop a supported image, SVG, DOCX, XLSX, or PPTX file. The browser reads the selected file locally; the demo does not upload it. The previewer's toolbar includes zoom and original-file download controls. Unsupported formats and parse failures show an error.
+Open the local URL printed by Angular CLI. Use **Choose file** or drop a supported image, SVG, DOCX, XLSX, PPTX, ODS, OTS, or FODS file. The browser reads the selected file locally; the demo does not upload it. The previewer's toolbar includes zoom and original-file download controls. Unsupported formats and parse failures show an error.
 
 ## How it works
 

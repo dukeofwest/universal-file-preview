@@ -86,7 +86,7 @@ export default function App() {
         <div className="upload-actions">
           <label className="button button-primary">
             Choose file
-            <input type="file" accept="image/*,.svg,.docx,.xlsx,.pptx" onChange={onFileChange} />
+            <input type="file" accept="image/*,.svg,.docx,.xlsx,.pptx,.ods,.ots,.fods" onChange={onFileChange} />
           </label>
           {fileName && <button className="button button-secondary" type="button" onClick={clearFile}>Clear</button>}
         </div>
@@ -95,7 +95,7 @@ export default function App() {
       {error && <p className="error-message" role="alert">{error}</p>}
       <section className="preview-card" aria-label="File preview">
         {busy && <p className="loading-message" role="status">Loading preview…</p>}
-        {!fileName && <div className="empty-state"><span className="file-mark" aria-hidden="true">＋</span><strong>Your preview will appear here</strong><span>Try PNG, JPEG, GIF, WebP, SVG, DOCX, XLSX or PPTX.</span></div>}
+        {!fileName && <div className="empty-state"><span className="file-mark" aria-hidden="true">＋</span><strong>Your preview will appear here</strong><span>Try PNG, JPEG, GIF, WebP, SVG, DOCX, XLSX, PPTX or ODS.</span></div>}
         <div className="preview-host" ref={host} />
       </section>
       <footer className="example-footer">

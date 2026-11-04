@@ -1,6 +1,6 @@
 # React integration example
 
-A small React 19 application using the published `@dukeofwest/universal-file-preview` package (`0.1.1`). It uses function components, hooks, strict TypeScript, and does not import the library source from this repository.
+A small React 19 application using the published `@dukeofwest/universal-file-preview` package (`0.2.0`). It uses function components, hooks, strict TypeScript, and does not import the library source from this repository.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. Choose or drop a supported image, SVG, DOCX, XLSX, or PPTX file. The browser reads it locally; the demo does not upload it. The viewer toolbar includes zoom and original-file download controls. Unsupported formats and parse failures show an error.
+Open the local URL printed by Vite. Choose or drop a supported image, SVG, DOCX, XLSX, PPTX, ODS, OTS, or FODS file. The browser reads it locally; the demo does not upload it. The viewer toolbar includes zoom and original-file download controls. Unsupported formats and parse failures show an error.
 
 ## How it works
 

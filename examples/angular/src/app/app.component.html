@@ -21,7 +21,7 @@
     <div class="upload-actions">
       <label class="button button-primary">
         Choose file
-        <input type="file" accept="image/*,.svg,.docx,.xlsx,.pptx" aria-label="Choose a file to preview" (change)="onFileChange($event)" />
+        <input type="file" accept="image/*,.svg,.docx,.xlsx,.pptx,.ods,.ots,.fods" aria-label="Choose a file to preview" (change)="onFileChange($event)" />
       </label>
       <button *ngIf="fileName" class="button button-secondary" type="button" (click)="clearFile()">Clear</button>
     </div>
@@ -33,7 +33,7 @@
     <div *ngIf="!fileName" class="empty-state">
       <span class="file-mark" aria-hidden="true">＋</span>
       <strong>Your preview will appear here</strong>
-      <span>Try PNG, JPEG, GIF, WebP, SVG, DOCX, XLSX or PPTX.</span>
+      <span>Try PNG, JPEG, GIF, WebP, SVG, DOCX, XLSX, PPTX or ODS.</span>
     </div>
     <div #previewHost class="preview-host"></div>
   </section>
