@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DiagnosticCollector, DIAGNOSTIC_MESSAGES } from "../dist/diagnostics.js";
 
-// Codes and severities from docs/research/odf-implementation-specification.md §4.3.
+// Codes and severities from docs/research/odf-implementation-specification.md §4.3, plus later additions noted inline.
 const specifiedCodes = {
   "odf.formula.cached": "accuracy",
   "odf.formula.missing-result": "accuracy",
@@ -26,6 +26,7 @@ const specifiedCodes = {
   "odf.package.mimetype-position": "info",
   "odf.package.signed": "info",
   "odf.package.macros": "info",
+  "odf.meta.ignored": "info", // added in M6 for an unreadable meta.xml
   "odf.version.newer": "info",
   "odf.settings.ignored": "info",
 };

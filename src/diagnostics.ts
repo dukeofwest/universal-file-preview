@@ -85,6 +85,7 @@ export const DIAGNOSTIC_MESSAGES = {
   "odf.package.mimetype-position": fixed("info", "The package's mimetype entry is not stored first or is compressed."),
   "odf.package.signed": fixed("info", "The document is digitally signed; the signature was not verified."),
   "odf.package.macros": fixed("info", "The document contains macros; they were not run."),
+  "odf.meta.ignored": fixed("info", "Document metadata could not be read."),
   "odf.version.newer": { severity: "info", message: (_count, params) => `The document uses OpenDocument version ${params.version ?? "(unknown)"}; newer features may be missing.` },
   "odf.settings.ignored": fixed("info", "View settings could not be read."),
 } as const satisfies Readonly<Record<string, DiagnosticDefinition>>;

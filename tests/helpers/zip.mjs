@@ -1,11 +1,13 @@
 import { deflateRawSync } from "node:zlib";
 
-export function makeZip(entries, { deflate = false } = {}) {
+/** `stored` lists entry names that stay uncompressed when `deflate` is true (e.g. an ODF "mimetype"). */
+export function makeZip(entries, { deflate = false, stored = [] } = {}) {
   const localParts = [], centralParts = [];
   let localOffset = 0;
   for (const [name, rawValue] of Object.entries(entries)) {
-    const nameBytes = Buffer.from(name), raw = Buffer.from(rawValue), compressed = deflate ? deflateRawSync(raw) : raw;
-    const method = deflate ? 8 : 0, crc = crc32(raw);
+    const compress = deflate && !stored.includes(name);
+    const nameBytes = Buffer.from(name), raw = Buffer.from(rawValue), compressed = compress ? deflateRawSync(raw) : raw;
+    const method = compress ? 8 : 0, crc = crc32(raw);
     const local = Buffer.alloc(30 + nameBytes.length + compressed.length);
     local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x800, 6);
     local.writeUInt16LE(method, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(compressed.length, 18);
