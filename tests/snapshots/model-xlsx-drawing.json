@@ -1,0 +1,263 @@
+{
+  "defaultFont": {
+    "family": "Calibri",
+    "size": 11
+  },
+  "kind": "workbook",
+  "sheets": [
+    {
+      "cells": [
+        {
+          "display": "A",
+          "ref": "A1",
+          "type": "inlineStr",
+          "value": "A"
+        },
+        {
+          "display": "B",
+          "ref": "B1",
+          "type": "inlineStr",
+          "value": "B"
+        }
+      ],
+      "drawings": [
+        {
+          "anchor": {
+            "from": {
+              "column": 0,
+              "columnOffset": 0,
+              "row": 0,
+              "rowOffset": 0
+            },
+            "to": {
+              "column": 4,
+              "columnOffset": 0,
+              "row": 9,
+              "rowOffset": 0
+            }
+          },
+          "elements": [
+            {
+              "camera": {
+                "distance": 14190000,
+                "latitude": 299.5600166666667,
+                "lit": true,
+                "longitude": 0,
+                "revolution": 0
+              },
+              "fill": {
+                "color": "#595959"
+              },
+              "geometry": "rect",
+              "height": 400,
+              "kind": "shape",
+              "left": 100,
+              "top": 200,
+              "width": 1000
+            },
+            {
+              "camera": {
+                "distance": 14190000,
+                "latitude": 309.6,
+                "lit": true,
+                "longitude": 0,
+                "revolution": 0
+              },
+              "fill": {
+                "color": "#595959"
+              },
+              "geometry": "ellipse",
+              "height": 100,
+              "kind": "shape",
+              "left": 1100,
+              "top": 200,
+              "width": 200
+            },
+            {
+              "height": 200,
+              "kind": "text",
+              "left": 100,
+              "margins": {
+                "bottom": 45720,
+                "left": 91440,
+                "right": 91440,
+                "top": 45720
+              },
+              "paragraphs": [
+                {
+                  "alignment": "center",
+                  "defaultRun": {
+                    "color": "#000000",
+                    "fontFamily": "Calibri",
+                    "fontSize": 11
+                  },
+                  "runs": [
+                    {
+                      "color": "#000000",
+                      "fontFamily": "Franklin Gothic Medium",
+                      "fontSize": 12,
+                      "text": "Arched"
+                    }
+                  ]
+                }
+              ],
+              "top": 700,
+              "verticalAlign": "center",
+              "warp": "textArchUp",
+              "width": 800,
+              "wrap": true
+            },
+            {
+              "height": 200,
+              "kind": "text",
+              "left": 1100,
+              "margins": {
+                "bottom": 45720,
+                "left": 91440,
+                "right": 91440,
+                "top": 45720
+              },
+              "paragraphs": [
+                {
+                  "defaultRun": {
+                    "color": "#000000",
+                    "fontFamily": "Calibri",
+                    "fontSize": 11
+                  },
+                  "runs": [
+                    {
+                      "color": "#ffffff",
+                      "fontFamily": "Calibri",
+                      "fontSize": 14,
+                      "shadow": {
+                        "blur": 3,
+                        "color": "#000000",
+                        "opacity": 0.4,
+                        "x": 1.0606601717798214,
+                        "y": 1.0606601717798212
+                      },
+                      "text": "2027"
+                    }
+                  ]
+                }
+              ],
+              "reflection": {
+                "blur": 6350,
+                "distance": 0,
+                "endOpacity": 0.003,
+                "endPosition": 0.35,
+                "startOpacity": 0.52
+              },
+              "rotation": 344.2581833333333,
+              "top": 700,
+              "verticalAlign": "top",
+              "width": 800,
+              "wrap": false
+            }
+          ],
+          "frame": {
+            "height": 1000,
+            "left": 100,
+            "top": 200,
+            "width": 2000
+          },
+          "kind": "shapes",
+          "name": "Timeline"
+        }
+      ],
+      "filterButtons": [
+        "A1"
+      ],
+      "maxColumn": 2,
+      "maxRow": 1,
+      "name": "T",
+      "tables": [
+        {
+          "elements": {
+            "firstColumn": {
+              "font": {
+                "bold": true,
+                "color": "#000000"
+              }
+            },
+            "firstColumnStripe": {
+              "fill": {
+                "foreground": "#d9d9d9",
+                "pattern": "solid",
+                "type": "pattern"
+              }
+            },
+            "firstRowStripe": {
+              "fill": {
+                "foreground": "#d9d9d9",
+                "pattern": "solid",
+                "type": "pattern"
+              }
+            },
+            "headerRow": {
+              "borders": {
+                "bottom": {
+                  "color": "#000000",
+                  "style": "thin"
+                }
+              },
+              "font": {
+                "bold": true,
+                "color": "#000000"
+              }
+            },
+            "lastColumn": {
+              "font": {
+                "bold": true,
+                "color": "#000000"
+              }
+            },
+            "totalRow": {
+              "borders": {
+                "top": {
+                  "color": "#000000",
+                  "style": "thin"
+                }
+              },
+              "font": {
+                "bold": true,
+                "color": "#000000"
+              }
+            },
+            "wholeTable": {
+              "borders": {
+                "bottom": {
+                  "color": "#000000",
+                  "style": "thin"
+                },
+                "top": {
+                  "color": "#000000",
+                  "style": "thin"
+                }
+              },
+              "font": {
+                "color": "#000000"
+              }
+            }
+          },
+          "headerRows": 1,
+          "range": {
+            "bottom": 2,
+            "left": 1,
+            "right": 2,
+            "top": 1
+          },
+          "showColumnStripes": false,
+          "showFirstColumn": false,
+          "showLastColumn": false,
+          "showRowStripes": false,
+          "totalsRows": 0
+        }
+      ]
+    }
+  ],
+  "styles": [
+    {}
+  ],
+  "title": "drawing.xlsx"
+}

@@ -1,0 +1,302 @@
+{
+  "blocks": [
+    {
+      "type": "paragraph",
+      "value": {
+        "defaultRun": {
+          "bold": true,
+          "color": "#173B67",
+          "fontFamily": "Aptos",
+          "fontSize": 18
+        },
+        "runs": [
+          {
+            "bold": true,
+            "color": "#173B67",
+            "fontFamily": "Aptos",
+            "fontSize": 18,
+            "text": "Quarterly product brief"
+          }
+        ],
+        "spacingAfter": 9,
+        "style": "Title"
+      }
+    },
+    {
+      "type": "paragraph",
+      "value": {
+        "defaultRun": {
+          "fontFamily": "Aptos",
+          "fontSize": 11
+        },
+        "runs": [
+          {
+            "color": "#68778B",
+            "fontFamily": "Aptos",
+            "fontSize": 11,
+            "text": "A compact DOCX sample with headings, emphasis, spacing, and a table."
+          }
+        ]
+      }
+    },
+    {
+      "type": "paragraph",
+      "value": {
+        "defaultRun": {
+          "bold": true,
+          "color": "#245EA8",
+          "fontFamily": "Aptos",
+          "fontSize": 14
+        },
+        "kind": "heading",
+        "runs": [
+          {
+            "bold": true,
+            "color": "#245EA8",
+            "fontFamily": "Aptos",
+            "fontSize": 14,
+            "text": "Highlights"
+          }
+        ],
+        "spacingAfter": 5,
+        "spacingBefore": 12,
+        "style": "Heading1"
+      }
+    },
+    {
+      "type": "paragraph",
+      "value": {
+        "defaultRun": {
+          "fontFamily": "Aptos",
+          "fontSize": 11
+        },
+        "list": {
+          "hanging": 18,
+          "indentLeft": 36,
+          "kind": "bullet",
+          "label": "•",
+          "level": 0
+        },
+        "runs": [
+          {
+            "fontFamily": "Aptos",
+            "fontSize": 11,
+            "text": "Files are parsed locally in your browser."
+          }
+        ]
+      }
+    },
+    {
+      "type": "paragraph",
+      "value": {
+        "defaultRun": {
+          "fontFamily": "Aptos",
+          "fontSize": 11
+        },
+        "list": {
+          "hanging": 18,
+          "indentLeft": 36,
+          "kind": "bullet",
+          "label": "•",
+          "level": 0
+        },
+        "runs": [
+          {
+            "bold": true,
+            "color": "#245EA8",
+            "fontFamily": "Aptos",
+            "fontSize": 11,
+            "text": "Formatting is part of the preview."
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "value": {
+        "borders": {
+          "bottom": {
+            "color": "#B8C6D8",
+            "style": "solid",
+            "width": 0.75
+          },
+          "insideH": {
+            "color": "#D9E1EA",
+            "style": "solid",
+            "width": 0.5
+          },
+          "insideV": {
+            "color": "#D9E1EA",
+            "style": "solid",
+            "width": 0.5
+          },
+          "left": {
+            "color": "#B8C6D8",
+            "style": "solid",
+            "width": 0.75
+          },
+          "right": {
+            "color": "#B8C6D8",
+            "style": "solid",
+            "width": 0.75
+          },
+          "top": {
+            "color": "#B8C6D8",
+            "style": "solid",
+            "width": 0.75
+          }
+        },
+        "rows": [
+          {
+            "cells": [
+              {
+                "background": "#245EA8",
+                "column": 0,
+                "paragraphs": [
+                  {
+                    "defaultRun": {
+                      "fontFamily": "Aptos",
+                      "fontSize": 11
+                    },
+                    "runs": [
+                      {
+                        "bold": true,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Aptos",
+                        "fontSize": 11,
+                        "text": "Area"
+                      }
+                    ]
+                  }
+                ],
+                "width": 50
+              },
+              {
+                "background": "#245EA8",
+                "column": 1,
+                "paragraphs": [
+                  {
+                    "defaultRun": {
+                      "fontFamily": "Aptos",
+                      "fontSize": 11
+                    },
+                    "runs": [
+                      {
+                        "bold": true,
+                        "color": "#FFFFFF",
+                        "fontFamily": "Aptos",
+                        "fontSize": 11,
+                        "text": "Status"
+                      }
+                    ]
+                  }
+                ],
+                "width": 50
+              }
+            ]
+          },
+          {
+            "cells": [
+              {
+                "column": 0,
+                "paragraphs": [
+                  {
+                    "defaultRun": {
+                      "fontFamily": "Aptos",
+                      "fontSize": 11
+                    },
+                    "runs": [
+                      {
+                        "fontFamily": "Aptos",
+                        "fontSize": 11,
+                        "text": "Image preview"
+                      }
+                    ]
+                  }
+                ],
+                "width": 50
+              },
+              {
+                "column": 1,
+                "paragraphs": [
+                  {
+                    "defaultRun": {
+                      "fontFamily": "Aptos",
+                      "fontSize": 11
+                    },
+                    "runs": [
+                      {
+                        "fontFamily": "Aptos",
+                        "fontSize": 11,
+                        "text": "Ready to try"
+                      }
+                    ]
+                  }
+                ],
+                "width": 50
+              }
+            ]
+          },
+          {
+            "cells": [
+              {
+                "column": 0,
+                "paragraphs": [
+                  {
+                    "defaultRun": {
+                      "fontFamily": "Aptos",
+                      "fontSize": 11
+                    },
+                    "runs": [
+                      {
+                        "fontFamily": "Aptos",
+                        "fontSize": 11,
+                        "text": "Office documents"
+                      }
+                    ]
+                  }
+                ],
+                "width": 50
+              },
+              {
+                "column": 1,
+                "paragraphs": [
+                  {
+                    "defaultRun": {
+                      "fontFamily": "Aptos",
+                      "fontSize": 11
+                    },
+                    "runs": [
+                      {
+                        "fontFamily": "Aptos",
+                        "fontSize": 11,
+                        "text": "Partial renderer support"
+                      }
+                    ]
+                  }
+                ],
+                "width": 50
+              }
+            ]
+          }
+        ],
+        "width": 450
+      }
+    }
+  ],
+  "defaultParagraph": {},
+  "defaultRun": {
+    "fontFamily": "Aptos",
+    "fontSize": 11
+  },
+  "kind": "word",
+  "page": {
+    "height": 792,
+    "marginBottom": 54,
+    "marginLeft": 54,
+    "marginRight": 54,
+    "marginTop": 54,
+    "width": 612
+  },
+  "title": "sample-report.docx"
+}

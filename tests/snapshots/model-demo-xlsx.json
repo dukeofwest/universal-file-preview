@@ -1,0 +1,166 @@
+{
+  "defaultFont": {
+    "family": "Aptos",
+    "size": 11
+  },
+  "kind": "workbook",
+  "sheets": [
+    {
+      "cells": [
+        {
+          "display": "Product",
+          "ref": "A1",
+          "style": 1,
+          "type": "s",
+          "value": "Product"
+        },
+        {
+          "display": "Units",
+          "ref": "B1",
+          "style": 1,
+          "type": "s",
+          "value": "Units"
+        },
+        {
+          "display": "Growth",
+          "ref": "C1",
+          "style": 1,
+          "type": "s",
+          "value": "Growth"
+        },
+        {
+          "display": "Preview toolkit",
+          "ref": "A2",
+          "type": "s",
+          "value": "Preview toolkit"
+        },
+        {
+          "display": "1240",
+          "ref": "B2",
+          "value": "1240"
+        },
+        {
+          "display": "18.4%",
+          "ref": "C2",
+          "style": 2,
+          "value": "0.184"
+        },
+        {
+          "display": "Images",
+          "ref": "A3",
+          "type": "s",
+          "value": "Images"
+        },
+        {
+          "display": "3",
+          "ref": "B3",
+          "value": "3"
+        },
+        {
+          "display": "12.0%",
+          "ref": "C3",
+          "style": 2,
+          "value": "0.12"
+        },
+        {
+          "display": "Office Open XML",
+          "ref": "A4",
+          "type": "s",
+          "value": "Office Open XML"
+        },
+        {
+          "display": "Partial rendering",
+          "ref": "B4",
+          "type": "s",
+          "value": "Partial rendering"
+        }
+      ],
+      "columns": [
+        {
+          "max": 1,
+          "min": 1,
+          "width": 26
+        },
+        {
+          "max": 3,
+          "min": 2,
+          "width": 15
+        }
+      ],
+      "maxColumn": 3,
+      "maxRow": 4,
+      "name": "Overview",
+      "rows": {
+        "1": {
+          "height": 25
+        }
+      },
+      "showGridLines": false
+    }
+  ],
+  "styles": [
+    {
+      "font": {
+        "family": "Aptos",
+        "size": 11
+      }
+    },
+    {
+      "borders": {
+        "bottom": {
+          "color": "#d9e1ea",
+          "style": "thin"
+        },
+        "left": {
+          "color": "#d9e1ea",
+          "style": "thin"
+        },
+        "right": {
+          "color": "#d9e1ea",
+          "style": "thin"
+        },
+        "top": {
+          "color": "#d9e1ea",
+          "style": "thin"
+        }
+      },
+      "fill": {
+        "foreground": "#245ea8",
+        "pattern": "solid",
+        "type": "pattern"
+      },
+      "font": {
+        "bold": true,
+        "color": "#ffffff",
+        "family": "Aptos Display",
+        "size": 11
+      }
+    },
+    {
+      "borders": {
+        "bottom": {
+          "color": "#d9e1ea",
+          "style": "thin"
+        },
+        "left": {
+          "color": "#d9e1ea",
+          "style": "thin"
+        },
+        "right": {
+          "color": "#d9e1ea",
+          "style": "thin"
+        },
+        "top": {
+          "color": "#d9e1ea",
+          "style": "thin"
+        }
+      },
+      "font": {
+        "family": "Aptos",
+        "size": 11
+      },
+      "numberFormat": "0.0%"
+    }
+  ],
+  "title": "sample-workbook.xlsx"
+}

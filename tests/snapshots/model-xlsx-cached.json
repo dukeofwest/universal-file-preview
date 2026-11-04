@@ -1,0 +1,32 @@
+{
+  "defaultFont": {
+    "family": "Calibri",
+    "size": 11
+  },
+  "kind": "workbook",
+  "sheets": [
+    {
+      "cells": [
+        {
+          "display": "Shared text",
+          "ref": "A1",
+          "type": "s",
+          "value": "Shared text"
+        },
+        {
+          "display": "2",
+          "formula": "1+1",
+          "ref": "B1",
+          "value": "2"
+        }
+      ],
+      "maxColumn": 2,
+      "maxRow": 1,
+      "name": "Main"
+    }
+  ],
+  "styles": [
+    {}
+  ],
+  "title": "sample.xlsx"
+}
