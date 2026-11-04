@@ -181,7 +181,7 @@ body{
 .evaluation-card h2,.format-card h2{margin:0;color:#1d1d1f;font-size:1.04rem;font-weight:700;letter-spacing:-.025em}
 .card-description{margin:8px 0 15px;color:#667085;font-size:.84rem;line-height:1.55}
 .install-command{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 9px 8px 14px;border:1px solid #e3e8ef;border-radius:12px;background:#f7f9fc}
-.install-command code{overflow:auto;color:#263545;font:600 .79rem ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;scrollbar-width:thin}
+.install-command code{min-width:0;overflow:auto;color:#263545;font:600 .79rem ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;scrollbar-width:thin}
 .copy-install{flex-shrink:0;padding:7px 10px;border:0;border-radius:8px;background:#263545;color:#fff;font:inherit;font-size:.72rem;font-weight:600;cursor:pointer;transition:background .2s ease,transform .2s ease}
 .copy-install:hover{background:#3478f6;transform:translateY(-1px)}
 .copy-install:focus-visible,.sample-link:focus-visible,.star-link:focus-visible{outline:3px solid #80adff;outline-offset:3px}
@@ -205,8 +205,8 @@ body{
 .format-pill.detect-only{border-color:#e8e2d9;background:#fbf9f6;color:#736857}
 .star-link{display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:8px 11px;border:1px solid #d5deeb;border-radius:999px;color:#344054;font-size:.76rem;font-weight:650;text-decoration:none;transition:border-color .2s ease,background .2s ease,transform .2s ease}
 .star-link:hover{transform:translateY(-1px);border-color:#9bb8eb;background:#f5f8ff}
-@media(max-width:850px){.evaluation-grid{grid-template-columns:1fr}.format-card{align-items:flex-start;flex-direction:column;gap:12px}.format-groups{justify-content:flex-start}}
-@media(max-width:600px){.sample-links{grid-template-columns:1fr}.evaluation-card{padding:17px}.format-card{padding:16px}.format-copy{min-width:0}.format-pill{white-space:normal}}
+@media(max-width:850px){.evaluation-grid{grid-template-columns:minmax(0,1fr)}.format-card{align-items:flex-start;flex-direction:column;gap:12px}.format-groups{justify-content:flex-start}}
+@media(max-width:600px){.sample-links{grid-template-columns:minmax(0,1fr)}.evaluation-card{padding:17px}.format-card{padding:16px}.format-copy{min-width:0}.format-pill{white-space:normal}}
     </style>
   </head>
   <body>

@@ -69,7 +69,7 @@ export default function App() {
       <a className="back-link" href="../">← All framework examples</a>
         <p className="eyebrow">Framework integration</p>
         <h1 className="typography-eyebrow-super">React file preview</h1>
-        <p className="intro">Preview supported images and Office Open XML files in your React app. Files are read locally in your browser and are never uploaded by this demo.</p>
+        <p className="intro">Preview supported images, Office Open XML files and OpenDocument spreadsheets in your React app. Files are read locally in your browser and are never uploaded by this demo.</p>
       </header>
 
       <section
