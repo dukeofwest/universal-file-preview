@@ -1,10 +1,13 @@
 import type { FileFormat } from "../detection/detect-format.js";
-import type { SpreadsheetBorderEdge, SpreadsheetCell, SpreadsheetConditional, SpreadsheetDrawing, SpreadsheetFill, SpreadsheetFont, SpreadsheetRange, SpreadsheetRun, SpreadsheetSlicer, SpreadsheetSlicerStyle, SpreadsheetSparkline, SpreadsheetStyle, SpreadsheetTable, Workbook, Worksheet } from "../model.js";
+import type { PreviewDiagnostic } from "../diagnostics.js";
+import type { SpreadsheetBorderEdge, SpreadsheetCell, SpreadsheetConditional, SpreadsheetDrawing, SpreadsheetFill, SpreadsheetFont, SpreadsheetRange, SpreadsheetRun, SpreadsheetSlicer, SpreadsheetSlicerStyle, SpreadsheetSparkline, SpreadsheetStyle, SpreadsheetTable } from "../model.js";
+import type { ExtendedSpreadsheetCell, ExtendedSpreadsheetColumn, ExtendedWorkbook, ExtendedWorksheet } from "../model-extensions.js";
 import { parseXlsx } from "../parsers/xlsx.js";
 import { formatGeneral } from "../parsers/xlsx-number-format.js";
 import { renderPptxElement } from "./drawingml-renderer.js";
 import { fontStack } from "./fonts.js";
 import type { FileRenderer, RendererContext, RendererInstance } from "./types.js";
+import { allowsGeneralShrink, cellAccessibleLabel, columnWidthPixels, defaultColumnPixels, noticeDiagnostics, rowInfoAt } from "./workbook-layout.js";
 
 const EMU_PER_PX = 9525;
 const GRIDLINE = "#e0e0e0";
@@ -33,11 +36,17 @@ export class XlsxRenderer implements FileRenderer {
  * Renders a parsed workbook as a tabbed, absolutely positioned grid. Shared by every
  * spreadsheet format so parsing and rendering stay separate (implementation specification
  * AD-3, milestone M9a). Internal: not exported from the package entry point (decision D2).
+ *
+ * Accepts the format-neutral extended model (milestone M9b); a plain public Workbook, such as
+ * every XLSX model, renders exactly as before. Accuracy and warning diagnostics are listed in a
+ * notice above the sheet tabs.
  */
-export function renderWorkbook(workbook: Workbook, options: { locale: string }): RendererInstance {
+export function renderWorkbook(workbook: ExtendedWorkbook, options: { locale: string }): RendererInstance {
     const { locale } = options, root = document.createElement("div"); root.className = "ufp-sheet-view";
     const tabBar = document.createElement("div"); tabBar.className = "ufp-sheet-tabs"; tabBar.setAttribute("role", "tablist");
     const viewport = document.createElement("div"); viewport.className = "ufp-grid-viewport";
+    const notices = noticeDiagnostics(workbook);
+    if (notices.length) root.append(renderNotice(notices));
     root.append(tabBar, viewport);
     let zoom = 1, view: SheetView | undefined;
     const visible = workbook.sheets.map((sheet, index) => ({ sheet, index })).filter(entry => !entry.sheet.hidden);
@@ -64,6 +73,16 @@ export function renderWorkbook(workbook: Workbook, options: { locale: string }):
     };
 }
 
+/** The diagnostics notice: plain text nodes only, never HTML, since messages may contain document metadata. */
+function renderNotice(entries: readonly PreviewDiagnostic[]): HTMLElement {
+  const notice = document.createElement("div"); notice.className = "ufp-sheet-notice"; notice.setAttribute("role", "note");
+  const summary = document.createElement("p"); summary.textContent = "This preview may differ from the original:";
+  const list = document.createElement("ul");
+  for (const entry of entries) { const item = document.createElement("li"); item.dataset["severity"] = entry.severity; item.textContent = entry.message; list.append(item); }
+  notice.append(summary, list);
+  return notice;
+}
+
 class SheetView {
   readonly element: HTMLDivElement;
   private readonly canvas = document.createElement("div");
@@ -71,10 +90,10 @@ class SheetView {
   private readonly corner = document.createElement("div");
   private readonly left = document.createElement("div");
   private readonly body = document.createElement("div");
-  private readonly cells = new Map<number, SpreadsheetCell>();
+  private readonly cells = new Map<number, ExtendedSpreadsheetCell>();
   private readonly mergeAt = new Map<number, SpreadsheetRange>();
   private readonly covered = new Map<number, SpreadsheetRange>();
-  private readonly columnInfo = new Map<number, { width?: number; hidden?: boolean; style?: number }>();
+  private readonly columnInfo = new Map<number, ExtendedSpreadsheetColumn>();
   private readonly effectiveCache = new Map<number, Effective>();
   private readonly imageUrls: string[] = [];
   private readonly sparklines = new Map<number, SpreadsheetSparkline>();
@@ -97,7 +116,7 @@ class SheetView {
   // Text overflow is measured on a canvas; once substitute font faces have loaded, measure again.
   private readonly onFontsLoaded = () => { syntheticBold.clear(); this.update(true); };
 
-  constructor(private readonly workbook: Workbook, private readonly sheet: Worksheet, private zoom: number, private readonly locale: string) {
+  constructor(private readonly workbook: ExtendedWorkbook, private readonly sheet: ExtendedWorksheet, private zoom: number, private readonly locale: string) {
     this.element = document.createElement("div"); this.element.className = "ufp-grid-scroll"; this.element.setAttribute("role", "grid"); this.element.setAttribute("aria-label", sheet.name);
     this.canvas.className = "ufp-grid-canvas";
     this.top.className = "ufp-grid-pane-top"; this.corner.className = "ufp-grid-pane-corner"; this.left.className = "ufp-grid-pane-left"; this.body.className = "ufp-grid-body";
@@ -160,7 +179,7 @@ class SheetView {
   /** Pixel geometry: Excel column width (characters) -> pixels via the maximum digit width of the default font. */
   private layout(): void {
     const z = this.scale, showHeaders = this.sheet.showHeaders !== false;
-    const defaultWidth = this.defaultColumnPixels();
+    const defaultWidth = defaultColumnPixels(this.sheet, this.mdw);
     const defaultHeight = this.sheet.defaultRowHeight ?? 15;
     this.colX = new Float64Array(this.columnCount + 2);
     this.rowY = new Float64Array(this.rowCount + 2);
@@ -169,14 +188,13 @@ class SheetView {
     this.headerHeight = showHeaders ? Math.round(20 * z) : 0;
     this.colX[1] = this.headerWidth;
     for (let column = 1; column <= this.columnCount; column++) {
-      const info = this.columnInfo.get(column);
-      const width = info?.hidden ? 0 : info?.width !== undefined ? columnPixels(info.width, this.mdw) : defaultWidth;
+      const width = columnWidthPixels(this.columnInfo.get(column), defaultWidth, this.mdw);
       this.colX[column + 1] = this.colX[column]! + Math.round(width * z);
     }
     this.rowY[1] = this.headerHeight;
     const autoHeights = this.autoRowHeights(defaultHeight);
     for (let row = 1; row <= this.rowCount; row++) {
-      const info = this.sheet.rows?.[row];
+      const info = rowInfoAt(this.sheet, row);
       const points = info?.hidden ? 0 : info?.height ?? autoHeights.get(row) ?? defaultHeight;
       // Excel truncates row heights to whole pixels (43.15pt -> 57px).
       this.rowY[row + 1] = this.rowY[row]! + Math.round(Math.floor(points * 4 / 3 + 1e-6) * z);
@@ -187,20 +205,13 @@ class SheetView {
     this.rendered = undefined;
   }
 
-  private defaultColumnPixels(): number {
-    const stored = this.sheet.defaultColumnWidth;
-    if (stored !== undefined && stored > 0) return columnPixels(stored, this.mdw);
-    const base = stored !== undefined && stored < 0 ? -stored : 8;
-    return Math.ceil((base * this.mdw + 5) / 8) * 8;
-  }
-
   /** Rows without a stored height grow to fit larger fonts, as Excel auto-fits them. */
   private autoRowHeights(defaultHeight: number): Map<number, number> {
     const heights = new Map<number, number>(), styles = this.workbook.styles ?? [];
     const defaultSize = this.workbook.defaultFont?.size ?? 11;
     for (const cell of this.sheet.cells) {
       const position = cellPosition(cell.ref);
-      if (!position || this.sheet.rows?.[position.row]?.height !== undefined || cell.display === undefined || cell.display === "") continue;
+      if (!position || rowInfoAt(this.sheet, position.row)?.height !== undefined || cell.display === undefined || cell.display === "") continue;
       const base = { ...this.workbook.defaultFont, ...styles[cell.style ?? 0]?.font }, fonts = [base, ...(cell.runs ?? []).map(run => ({ ...base, ...run.font }))];
       if (!fonts.some(font => (font.size ?? defaultSize) > defaultSize)) continue;
       const height = Math.max(...fonts.map(font => cellLinePixels(font, 1))) * 0.75;
@@ -385,7 +396,8 @@ class SheetView {
     if (numeric && !wrap && !rotation && !alignment.shrinkToFit && !conditional?.display) {
       if (measure(text) > available) {
         const value = Number(cell.value);
-        const general = !(this.workbook.styles?.[cell.style ?? 0]?.numberFormat) && Number.isFinite(value);
+        // Saved display text and explicit formats are never shortened with the viewer's locale.
+        const general = allowsGeneralShrink(cell, this.workbook.styles?.[cell.style ?? 0]) && Number.isFinite(value);
         let fitted: string | undefined;
         if (general) for (let length = 10; length >= 1 && !fitted; length--) { const candidate = formatGeneral(value, this.locale, length); if (measure(candidate) <= available) fitted = candidate; }
         text = fitted ?? "#".repeat(Math.max(1, Math.floor(available / Math.max(1, measure("#")))));
@@ -399,7 +411,7 @@ class SheetView {
     }
     if (horizontal === "centerContinuous") box_ = this.centerAcross(row, column, rect);
     const element = document.createElement("div"); element.className = "ufp-grid-cell"; element.setAttribute("role", "gridcell");
-    element.setAttribute("aria-label", `${ref}: ${text}`);
+    element.setAttribute("aria-label", cellAccessibleLabel(ref, text, cell));
     const color = cell.displayColor ?? font.color ?? "#000000";
     const verticalAlign = alignment.vertical ?? "bottom";
     const justify = verticalAlign === "top" || verticalAlign === "justify" || verticalAlign === "distributed" ? "flex-start" : verticalAlign === "center" ? "center" : "flex-end";
@@ -428,7 +440,7 @@ class SheetView {
     } else if (horizontal === "fill") {
       const unit = measure(text), count = unit > 0 ? Math.max(1, Math.floor(available / unit)) : 1;
       content.append(text.repeat(count));
-    } else content.append(wrap && text.endsWith("\n") ? `${text}​` : text); // Excel keeps a trailing line break as an empty last line
+    } else content.append(wrap && text.endsWith("\n") ? `${text}\u200B` : text); // Excel keeps a trailing line break as an empty last line
     if (rotation) this.rotate(element, line, rotation, horizontal, verticalAlign, text, fontPx, box_);
     element.append(line);
     result.push(element);
@@ -676,7 +688,7 @@ class SheetView {
     if (cached) return cached;
     const styles = this.workbook.styles ?? [];
     const cell = this.cells.get(cacheKey);
-    const styleIndex = cell?.style ?? this.sheet.rows?.[row]?.style ?? this.columnInfo.get(column)?.style ?? 0;
+    const styleIndex = cell?.style ?? rowInfoAt(this.sheet, row)?.style ?? this.columnInfo.get(column)?.style ?? 0;
     const base = styles[styleIndex] ?? {};
     const defaultFont = this.workbook.defaultFont ?? {};
     let font: SpreadsheetFont = { ...defaultFont, ...base.font };
@@ -903,7 +915,6 @@ function indentStep(font: SpreadsheetFont, mdw: number): number {
 }
 
 /** Excel's column width conversion: stored width (characters incl. padding) -> pixels at 100%. */
-function columnPixels(width: number, mdw: number): number { return Math.trunc(((256 * width + Math.trunc(128 / mdw)) / 256) * mdw); }
 
 let measureContext: CanvasRenderingContext2D | null | undefined;
 function measureText(text: string, font: string): number {
