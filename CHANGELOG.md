@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- **Compatibility note:** the public `FileFormat` type now also includes `"ods"`, `"ots"`, and `"fods"`. `detectFormat` returns them for OpenDocument spreadsheets (by package `mimetype` entry, flat-XML content, MIME type, or extension). TypeScript code that switches exhaustively over `FileFormat` (for example with a `never` check) needs cases for the new members. Preview support for these formats is still in development; until it ships, the viewer reports them as unsupported.
+- **Compatibility note:** the public `FileFormat` type now also includes `"ods"`, `"ots"`, and `"fods"`. `detectFormat` returns them for OpenDocument spreadsheets (by package `mimetype` entry, flat-XML content, MIME type, or extension). TypeScript code that switches exhaustively over `FileFormat` (for example with a `never` check) needs cases for the new members. Flat XML spreadsheets (`"fods"`) are still reported as unsupported by the viewer.
+- Added OpenDocument spreadsheet previews (`.ods` and `.ots` templates) in the existing workbook grid. Cells show the text the producing application saved, so values are never reformatted for the viewer locale; formula results are shown as last saved (never recalculated) with a notice, and hidden or truncated content is reported. The demo includes a sample ODS file.
 - SVG previews keep fills and strokes that reference a gradient inside the same image (`fill="url(#id)"`); previously the sanitizer removed them and such shapes rendered black. Remote, `data:` and `javascript:` references are still removed.
 - `detectFormat` no longer returns JavaScript object properties for file names or MIME types such as `x.constructor`; they are reported as `"unknown"`.
 - Added published-package integration applications for Angular, React, and Vue, plus a unified GitHub Pages site and deployment workflow.

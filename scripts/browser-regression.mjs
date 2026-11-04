@@ -19,7 +19,7 @@
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
@@ -70,7 +70,8 @@ async function collectFiles() {
   const samples = await mkdtemp(join(tmpdir(), "ufp-regression-samples-"));
   try {
     await writeDemoSamples(samples);
-    for (const name of ["sample-report.docx", "sample-workbook.xlsx", "sample-deck.pptx", "sample-illustration.svg"]) files.set(name, await readFile(join(samples, name)));
+    // Every generated demo sample, in a stable order, so new samples are covered automatically.
+    for (const name of (await readdir(samples)).sort()) files.set(name, await readFile(join(samples, name)));
   } finally { await rm(samples, { recursive: true, force: true }); }
   const { ooxmlFixtures, buildFixture } = await import(pathToFileURL(join(root, "tests", "helpers", "ooxml-fixtures.mjs")));
   // Parser-option variants (such as a German-locale parse) are covered by the browser locales instead.

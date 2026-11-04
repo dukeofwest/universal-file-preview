@@ -3,6 +3,7 @@ import type { FileRenderer } from "./types.js";
 import { PreviewError } from "../errors.js";
 import { ImageRenderer } from "./image-renderer.js";
 import { DocxRenderer, PptxRenderer, XlsxRenderer } from "./ooxml-renderers.js";
+import { OdsRenderer } from "./ods-renderer.js";
 
 export class RendererRegistry {
   readonly #renderers = new Map<FileFormat, FileRenderer>();
@@ -24,5 +25,6 @@ export class RendererRegistry {
 export function createDefaultRendererRegistry(): RendererRegistry {
   const registry = new RendererRegistry();
   registry.register(new ImageRenderer()); registry.register(new DocxRenderer()); registry.register(new XlsxRenderer()); registry.register(new PptxRenderer());
+  registry.register(new OdsRenderer());
   return registry;
 }
