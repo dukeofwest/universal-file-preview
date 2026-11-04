@@ -276,14 +276,15 @@ test("style resolution: default style, parent chain, per-attribute overrides and
       fill: { type: "pattern", pattern: "solid", foreground: "#ddeeff" },
       borders: { top: { style: "thin", color: "#000000" }, bottom: { style: "thin", color: "#000000" }, left: { style: "double", color: "#00ff00" }, right: { style: "thin", color: "#000000" } },
       alignment: { horizontal: "right", vertical: "center", wrapText: true, textRotation: 135 },
-      numberFormatInfo: { category: "currency", sourceName: "N104", supported: false },
+      // M13: empty data styles cannot be reproduced; the effective locale is the document's.
+      numberFormatInfo: { category: "currency", sourceName: "N104", supported: false, locale: "de-DE" },
     }, label);
     const ce2 = resolver.cellStyleIndex("ce2");
     assert.deepEqual(resolver.styles[ce2], {
       font: { family: "Liberation Sans", size: 10 },
       borders: { diagonal: { style: "thin", color: "#123456" }, diagonalDown: true },
       alignment: { shrinkToFit: true },
-      numberFormatInfo: { category: "number", sourceName: "N2", supported: false },
+      numberFormatInfo: { category: "number", sourceName: "N2", supported: false, locale: "de-DE" },
     }, `${label}: value-type alignment means general, so no horizontal alignment`);
     assert.deepEqual(collector.list(), [], label);
   }

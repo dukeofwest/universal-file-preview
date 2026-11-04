@@ -9,6 +9,7 @@ import { nsAttr, nsChildren, nsFirst, nsValuePrefix, parseXmlNs, type NsXmlNode 
 import { streamXml, type StartAction, type XmlStartElement } from "../../xml/xml-stream.js";
 import { columnName } from "../xlsx.js";
 import { EXT, FORMULA_NAMESPACES, ODF } from "./namespaces.js";
+import { formatOdfValue, sameDisplayText, type OdfNumberFormat } from "./number-styles.js";
 import { createStyleResolver, type OdfStyleResolver } from "./styles.js";
 import { annotationText, cellHyperlink, cellRuns, savedCellText } from "./text.js";
 import { DEFAULT_NULL_DATE, readCellValue } from "./values.js";
@@ -365,14 +366,24 @@ class SheetBuilder {
     const value = readCellValue(node, saved, this.collector, this.content.nullDate);
     const formula = readFormula(node, value, saved, this.collector, row.start, firstColumn);
     if (formula) { this.content.formulaCells += copies; if (formula.result === "missing") this.content.missingResults += copies; }
-    const display = displayFor(value, saved);
-    if (display.source === "raw" && isNumericKind(value)) this.collector.report("odf.display.raw", { count: copies });
-    const data: SpreadsheetCellData = { value, display, ...(formula ? { formula } : {}), ...(covered ? { covered: true } : {}) };
+    // Copies can differ in style (column default styles), so the display is chosen per style.
+    const byStyle = new Map<number, { data: SpreadsheetCellData; color?: string; raw: boolean; mismatch: boolean; cells: number }>();
+    const shown = (style: number) => {
+      let entry = byStyle.get(style);
+      if (!entry) {
+        const chosen = displayFor(value, saved, formula?.result === "missing" ? undefined : this.styles.numberFormat(style), this.content.nullDate);
+        entry = { data: { value, display: chosen.display, ...(formula ? { formula } : {}), ...(covered ? { covered: true } : {}) }, ...(chosen.color ? { color: chosen.color } : {}), raw: chosen.display.source === "raw" && isNumericKind(value), mismatch: chosen.display.computed !== undefined, cells: 0 };
+        byStyle.set(style, entry);
+      }
+      entry.cells++;
+      return entry;
+    };
     if (covered) this.collector.report("odf.covered-cell-content", { count: copies });
     for (let r = row.start; r <= lastRow; r++) {
       for (let c = firstColumn; c <= lastColumn; c++) {
         const ref = `${columnName(c)}${r}`, style = this.styles.cellStyleIndex(ownStyle ?? inheritedStyle(c));
-        this.#cells.push(legacyCell(ref, data, style, runs));
+        const entry = shown(style);
+        this.#cells.push(legacyCell(ref, entry.data, style, runs, entry.color));
         if (link) this.#hyperlinks[ref] = link;
         if (comment !== undefined) this.#comments[ref] = comment;
         if (!covered && (columnSpan > 1 || rowSpan > 1)) {
@@ -381,6 +392,10 @@ class SheetBuilder {
           this.#maxRow = Math.max(this.#maxRow, merge.bottom); this.#maxColumn = Math.max(this.#maxColumn, merge.right);
         }
       }
+    }
+    for (const entry of byStyle.values()) {
+      if (entry.raw) this.collector.report("odf.display.raw", { count: entry.cells });
+      if (entry.mismatch) this.collector.report("odf.display.mismatch", { count: entry.cells });
     }
     this.#maxRow = Math.max(this.#maxRow, lastRow); this.#maxColumn = Math.max(this.#maxColumn, lastColumn);
   }
@@ -451,15 +466,27 @@ function hasContent(node: NsXmlNode): boolean {
 
 const isNumericKind = (value: SpreadsheetCellValue) => value.kind === "number" || value.kind === "percentage" || value.kind === "currency" || value.kind === "date" || value.kind === "time";
 
-/** Display selection for M11 (specification §6.3): saved text first, never formatted with the viewer's locale. */
-function displayFor(value: SpreadsheetCellValue, saved: string | undefined): SpreadsheetDisplay {
-  if (saved !== undefined) return { text: saved, source: "file" };
+/**
+ * Display selection (specification §6.3): saved text first (I-2). Without saved text, the data
+ * style's formatting in the document locale when it can be reproduced, else the raw value; never
+ * the viewer's locale (I-3). With saved text, the formatting only verifies it: a difference is
+ * recorded in `computed` and the saved text is still shown. The colour comes from the data
+ * style's section for the value (negative red and similar).
+ */
+function displayFor(value: SpreadsheetCellValue, saved: string | undefined, format: OdfNumberFormat | undefined, nullDate: string): { display: SpreadsheetDisplay; color?: string } {
+  const formatted = format && (isNumericKind(value) || value.kind === "boolean") ? formatOdfValue(format, value, nullDate) : undefined;
+  const color = formatted?.color ? { color: formatted.color } : {};
+  if (saved !== undefined) {
+    const computed = formatted?.text;
+    return { display: computed !== undefined && !sameDisplayText(saved, computed) ? { text: saved, source: "file", computed } : { text: saved, source: "file" }, ...color };
+  }
+  if (formatted?.text !== undefined) return { display: { text: formatted.text, source: "computed" }, ...color };
   switch (value.kind) {
-    case "empty": case "invalid": return { text: "", source: "raw" };
-    case "string": return { text: value.text, source: "file" };
-    case "boolean": return { text: value.boolean ? "TRUE" : "FALSE", source: "raw" };
-    case "error": return { text: value.code, source: "raw" };
-    default: return { text: value.lexical, source: "raw" };
+    case "empty": case "invalid": return { display: { text: "", source: "raw" } };
+    case "string": return { display: { text: value.text, source: "file" } };
+    case "boolean": return { display: { text: value.boolean ? "TRUE" : "FALSE", source: "raw" }, ...color };
+    case "error": return { display: { text: value.code, source: "raw" } };
+    default: return { display: { text: value.lexical, source: "raw" }, ...color };
   }
 }
 
@@ -480,9 +507,10 @@ function readFormula(node: NsXmlNode, value: SpreadsheetCellValue, saved: string
 }
 
 /** Legacy SpreadsheetCell fields (specification §6.4), so the existing grid renderer draws ODS cells unchanged. */
-function legacyCell(ref: string, data: SpreadsheetCellData, style: number, runs: ReturnType<typeof cellRuns>): ExtendedSpreadsheetCell {
+function legacyCell(ref: string, data: SpreadsheetCellData, style: number, runs: ReturnType<typeof cellRuns>, color: string | undefined): ExtendedSpreadsheetCell {
   const cell: ExtendedSpreadsheetCell = { ref, value: "", data };
   if (style) cell.style = style;
+  if (color) cell.displayColor = color;
   if (data.formula) cell.formula = data.formula.expression;
   if (data.formula?.result === "missing") return cell;
   const value = data.value;
