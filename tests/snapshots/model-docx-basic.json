@@ -1,0 +1,44 @@
+{
+  "blocks": [
+    {
+      "type": "paragraph",
+      "value": {
+        "defaultRun": {},
+        "runs": [
+          {
+            "bold": true,
+            "text": "Hello"
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "value": {
+        "rows": [
+          {
+            "cells": [
+              {
+                "column": 0,
+                "paragraphs": [
+                  {
+                    "defaultRun": {},
+                    "runs": [
+                      {
+                        "text": "Cell"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "defaultParagraph": {},
+  "defaultRun": {},
+  "kind": "word",
+  "title": "sample.docx"
+}

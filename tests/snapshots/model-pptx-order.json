@@ -1,0 +1,48 @@
+{
+  "kind": "presentation",
+  "slides": [
+    {
+      "elements": [],
+      "height": 5143500,
+      "paragraphs": [
+        {
+          "defaultRun": {
+            "color": "#000000",
+            "fontFamily": "Arial"
+          },
+          "runs": [
+            {
+              "color": "#000000",
+              "fontFamily": "Arial",
+              "text": "First"
+            }
+          ]
+        }
+      ],
+      "title": "First",
+      "width": 9144000
+    },
+    {
+      "elements": [],
+      "height": 5143500,
+      "paragraphs": [
+        {
+          "defaultRun": {
+            "color": "#000000",
+            "fontFamily": "Arial"
+          },
+          "runs": [
+            {
+              "color": "#000000",
+              "fontFamily": "Arial",
+              "text": "Second"
+            }
+          ]
+        }
+      ],
+      "title": "Second",
+      "width": 9144000
+    }
+  ],
+  "title": "sample.pptx"
+}

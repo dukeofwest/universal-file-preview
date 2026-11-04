@@ -1,0 +1,199 @@
+{
+  "defaultFont": {
+    "family": "Calibri",
+    "size": 11
+  },
+  "kind": "workbook",
+  "sheets": [
+    {
+      "cells": [
+        {
+          "display": "2",
+          "ref": "A1",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "B1",
+          "value": "3"
+        },
+        {
+          "display": "1",
+          "ref": "C1",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "D1",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "E1",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "F1",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "G1",
+          "value": "5"
+        },
+        {
+          "display": "1",
+          "ref": "A2",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "B2",
+          "value": "2"
+        },
+        {
+          "display": "10",
+          "ref": "C2",
+          "value": "10"
+        },
+        {
+          "display": "50",
+          "ref": "D2",
+          "value": "50"
+        },
+        {
+          "display": "100",
+          "ref": "E2",
+          "value": "100"
+        }
+      ],
+      "conditional": {
+        "C1": {
+          "style": {
+            "borders": {
+              "bottom": {
+                "color": "#ffffff",
+                "style": "thin"
+              }
+            },
+            "fill": {
+              "background": "#ffffff",
+              "foreground": "#735773",
+              "pattern": "lightUp",
+              "type": "pattern"
+            }
+          }
+        },
+        "C2": {
+          "dataBar": {
+            "color": "#638ec6",
+            "end": 0.1,
+            "gradient": true,
+            "start": 0
+          },
+          "style": {
+            "fill": {
+              "foreground": "#ffffff",
+              "pattern": "solid",
+              "type": "pattern"
+            }
+          }
+        },
+        "D1": {
+          "style": {
+            "fill": {
+              "foreground": "#735773",
+              "pattern": "solid",
+              "type": "pattern"
+            }
+          }
+        },
+        "D2": {
+          "dataBar": {
+            "color": "#638ec6",
+            "end": 0.4555555555555556,
+            "gradient": true,
+            "start": 0
+          },
+          "style": {
+            "fill": {
+              "foreground": "#ffc7ce",
+              "pattern": "solid",
+              "type": "pattern"
+            },
+            "font": {
+              "bold": true,
+              "color": "#9c0006"
+            }
+          }
+        },
+        "E1": {
+          "style": {
+            "fill": {
+              "foreground": "#735773",
+              "pattern": "solid",
+              "type": "pattern"
+            }
+          }
+        },
+        "E2": {
+          "dataBar": {
+            "color": "#638ec6",
+            "end": 0.9,
+            "gradient": true,
+            "start": 0
+          },
+          "style": {
+            "fill": {
+              "foreground": "#ffc7ce",
+              "pattern": "solid",
+              "type": "pattern"
+            },
+            "font": {
+              "bold": true,
+              "color": "#9c0006"
+            }
+          }
+        },
+        "F1": {
+          "style": {
+            "fill": {
+              "foreground": "#735773",
+              "pattern": "solid",
+              "type": "pattern"
+            }
+          }
+        },
+        "G1": {
+          "style": {
+            "borders": {
+              "bottom": {
+                "color": "#ffffff",
+                "style": "thin"
+              }
+            },
+            "fill": {
+              "background": "#ffffff",
+              "foreground": "#735773",
+              "pattern": "lightUp",
+              "type": "pattern"
+            }
+          }
+        }
+      },
+      "maxColumn": 7,
+      "maxRow": 2,
+      "name": "Plan"
+    }
+  ],
+  "styles": [
+    {
+      "font": {
+        "family": "Calibri",
+        "size": 11
+      }
+    }
+  ],
+  "title": "cf.xlsx"
+}

@@ -1,0 +1,195 @@
+{
+  "defaultFont": {
+    "color": "#000000",
+    "family": "Calibri",
+    "size": 11
+  },
+  "kind": "workbook",
+  "sheets": [
+    {
+      "cells": [
+        {
+          "display": "1.234,50 EUR",
+          "ref": "A1",
+          "style": 1,
+          "value": "1234.5"
+        },
+        {
+          "display": "Rich red",
+          "ref": "B1",
+          "runs": [
+            {
+              "text": "Rich "
+            },
+            {
+              "font": {
+                "bold": true,
+                "color": "#ff0000",
+                "family": "Arial",
+                "size": 12
+              },
+              "text": "red"
+            }
+          ],
+          "type": "s",
+          "value": "Rich red"
+        },
+        {
+          "display": "28.10.2026",
+          "ref": "C1",
+          "style": 2,
+          "value": "46323"
+        },
+        {
+          "display": "26%",
+          "ref": "D1",
+          "style": 3,
+          "value": "0.256"
+        },
+        {
+          "display": "Line\rbreak",
+          "ref": "A2",
+          "type": "s",
+          "value": "Line\rbreak"
+        },
+        {
+          "display": "WAHR",
+          "ref": "B2",
+          "type": "b",
+          "value": "1"
+        },
+        {
+          "display": "#N/A",
+          "ref": "C2",
+          "type": "e",
+          "value": "#N/A"
+        },
+        {
+          "display": "2469",
+          "formula": "A1*2",
+          "ref": "D2",
+          "value": "2469"
+        }
+      ],
+      "columns": [
+        {
+          "max": 1,
+          "min": 1,
+          "width": 24.5703125
+        },
+        {
+          "hidden": true,
+          "max": 4,
+          "min": 3,
+          "width": 0
+        }
+      ],
+      "defaultColumnWidth": -10,
+      "defaultRowHeight": 15,
+      "frozen": {
+        "columns": 1,
+        "rows": 2
+      },
+      "maxColumn": 4,
+      "maxRow": 2,
+      "merges": [
+        {
+          "bottom": 3,
+          "left": 5,
+          "right": 6,
+          "top": 1
+        }
+      ],
+      "name": "Data",
+      "rows": {
+        "1": {
+          "height": 30
+        },
+        "2": {
+          "hidden": true
+        }
+      },
+      "showGridLines": false,
+      "tabColor": "#00b050",
+      "zoom": 0.8
+    },
+    {
+      "cells": [
+        {
+          "display": "Plain",
+          "ref": "A1",
+          "type": "s",
+          "value": "Plain"
+        }
+      ],
+      "hidden": true,
+      "maxColumn": 1,
+      "maxRow": 1,
+      "name": "Secret"
+    }
+  ],
+  "styles": [
+    {
+      "font": {
+        "color": "#000000",
+        "family": "Calibri",
+        "size": 11
+      }
+    },
+    {
+      "alignment": {
+        "horizontal": "center",
+        "indent": 1,
+        "textRotation": 90,
+        "vertical": "top",
+        "wrapText": true
+      },
+      "borders": {
+        "bottom": {
+          "color": "#ff0000",
+          "style": "double"
+        },
+        "diagonal": {
+          "color": "#000000",
+          "style": "thin"
+        },
+        "diagonalDown": true,
+        "left": {
+          "color": "#000000",
+          "style": "thin"
+        }
+      },
+      "fill": {
+        "foreground": "#dae3f3",
+        "pattern": "solid",
+        "type": "pattern"
+      },
+      "font": {
+        "bold": true,
+        "color": "#404040",
+        "family": "Corbel",
+        "italic": true,
+        "size": 14,
+        "underline": "double"
+      },
+      "numberFormat": "#,##0.00 \"EUR\""
+    },
+    {
+      "font": {
+        "color": "#000000",
+        "family": "Calibri",
+        "size": 11
+      },
+      "numberFormat": "dd.mm.yyyy"
+    },
+    {
+      "font": {
+        "color": "#000000",
+        "family": "Calibri",
+        "size": 11
+      },
+      "numberFormat": "0%"
+    }
+  ],
+  "title": "styled.xlsx"
+}

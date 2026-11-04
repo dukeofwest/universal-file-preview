@@ -1,0 +1,170 @@
+{
+  "kind": "presentation",
+  "slides": [
+    {
+      "background": {
+        "color": "#f3f6fa"
+      },
+      "elements": [
+        {
+          "height": 1000000,
+          "kind": "text",
+          "left": 685800,
+          "margins": {
+            "bottom": 45720,
+            "left": 91440,
+            "right": 91440,
+            "top": 45720
+          },
+          "paragraphs": [
+            {
+              "alignment": "left",
+              "defaultRun": {
+                "color": "#18324F",
+                "fontFamily": "Aptos"
+              },
+              "lineHeight": 1.1,
+              "runs": [
+                {
+                  "bold": true,
+                  "color": "#18324f",
+                  "fontFamily": "Aptos Display",
+                  "fontSize": 32,
+                  "text": "A clearer view of your files"
+                }
+              ]
+            }
+          ],
+          "top": 685800,
+          "verticalAlign": "top",
+          "width": 7772400,
+          "wrap": true
+        },
+        {
+          "height": 700000,
+          "kind": "text",
+          "left": 685800,
+          "margins": {
+            "bottom": 45720,
+            "left": 91440,
+            "right": 91440,
+            "top": 45720
+          },
+          "paragraphs": [
+            {
+              "defaultRun": {
+                "color": "#18324F",
+                "fontFamily": "Aptos"
+              },
+              "runs": [
+                {
+                  "color": "#52657a",
+                  "fontFamily": "Aptos",
+                  "fontSize": 18,
+                  "text": "A sample slide with a theme, typography, shapes, and a clean layout."
+                }
+              ]
+            }
+          ],
+          "top": 1905000,
+          "verticalAlign": "top",
+          "width": 6800000,
+          "wrap": true
+        },
+        {
+          "fill": {
+            "color": "#3478f6"
+          },
+          "geometry": "roundRect",
+          "height": 250000,
+          "kind": "shape",
+          "left": 685800,
+          "top": 3000000,
+          "width": 4000000
+        },
+        {
+          "height": 600000,
+          "kind": "text",
+          "left": 685800,
+          "margins": {
+            "bottom": 45720,
+            "left": 91440,
+            "right": 91440,
+            "top": 45720
+          },
+          "paragraphs": [
+            {
+              "defaultRun": {
+                "color": "#18324F",
+                "fontFamily": "Aptos"
+              },
+              "runs": [
+                {
+                  "color": "#3478f6",
+                  "fontFamily": "Aptos",
+                  "fontSize": 15,
+                  "text": "Angular  ·  React  ·  Vue  ·  Browser-side previews"
+                }
+              ]
+            }
+          ],
+          "top": 3600000,
+          "verticalAlign": "top",
+          "width": 7000000,
+          "wrap": true
+        }
+      ],
+      "height": 5143500,
+      "paragraphs": [
+        {
+          "alignment": "left",
+          "defaultRun": {
+            "color": "#18324F",
+            "fontFamily": "Aptos"
+          },
+          "lineHeight": 1.1,
+          "runs": [
+            {
+              "bold": true,
+              "color": "#18324f",
+              "fontFamily": "Aptos Display",
+              "fontSize": 32,
+              "text": "A clearer view of your files"
+            }
+          ]
+        },
+        {
+          "defaultRun": {
+            "color": "#18324F",
+            "fontFamily": "Aptos"
+          },
+          "runs": [
+            {
+              "color": "#52657a",
+              "fontFamily": "Aptos",
+              "fontSize": 18,
+              "text": "A sample slide with a theme, typography, shapes, and a clean layout."
+            }
+          ]
+        },
+        {
+          "defaultRun": {
+            "color": "#18324F",
+            "fontFamily": "Aptos"
+          },
+          "runs": [
+            {
+              "color": "#3478f6",
+              "fontFamily": "Aptos",
+              "fontSize": 15,
+              "text": "Angular  ·  React  ·  Vue  ·  Browser-side previews"
+            }
+          ]
+        }
+      ],
+      "title": "A clearer view of your files",
+      "width": 9144000
+    }
+  ],
+  "title": "sample-deck.pptx"
+}

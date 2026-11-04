@@ -1,0 +1,307 @@
+{
+  "defaultFont": {
+    "family": "Calibri",
+    "size": 11
+  },
+  "kind": "workbook",
+  "sheets": [
+    {
+      "cells": [
+        {
+          "display": "Name",
+          "ref": "A1",
+          "type": "inlineStr",
+          "value": "Name"
+        },
+        {
+          "display": "Wert",
+          "ref": "B1",
+          "type": "inlineStr",
+          "value": "Wert"
+        },
+        {
+          "display": "Beta",
+          "ref": "A2",
+          "type": "inlineStr",
+          "value": "Beta"
+        },
+        {
+          "display": "1",
+          "ref": "B2",
+          "value": "1"
+        },
+        {
+          "display": "Alpha",
+          "ref": "A3",
+          "type": "inlineStr",
+          "value": "Alpha"
+        },
+        {
+          "display": "2",
+          "ref": "B3",
+          "value": "2"
+        },
+        {
+          "display": "Beta",
+          "ref": "A4",
+          "type": "inlineStr",
+          "value": "Beta"
+        },
+        {
+          "display": "3",
+          "ref": "B4",
+          "value": "3"
+        }
+      ],
+      "drawings": [
+        {
+          "anchor": {
+            "from": {
+              "column": 3,
+              "columnOffset": 0,
+              "row": 0,
+              "rowOffset": 0
+            },
+            "to": {
+              "column": 6,
+              "columnOffset": 0,
+              "row": 4,
+              "rowOffset": 0
+            }
+          },
+          "caption": "Namen",
+          "columnCount": 2,
+          "filtered": true,
+          "itemHeight": 241300,
+          "items": [
+            {
+              "hasData": true,
+              "selected": false,
+              "text": "Alpha"
+            },
+            {
+              "hasData": true,
+              "selected": true,
+              "text": "Beta"
+            }
+          ],
+          "kind": "slicer",
+          "name": "Name",
+          "style": {
+            "header": {
+              "borders": {
+                "bottom": {
+                  "color": "#00b050",
+                  "style": "thin"
+                }
+              },
+              "font": {
+                "bold": true
+              }
+            },
+            "selectedItemWithData": {
+              "fill": {
+                "foreground": "#006100",
+                "pattern": "solid",
+                "type": "pattern"
+              },
+              "font": {
+                "color": "#ffffff"
+              }
+            },
+            "unselectedItemWithData": {
+              "fill": {
+                "foreground": "#c0c0c0",
+                "pattern": "solid",
+                "type": "pattern"
+              },
+              "font": {
+                "color": "#000000"
+              }
+            },
+            "wholeTable": {
+              "borders": {
+                "bottom": {
+                  "color": "#00b050",
+                  "style": "thin"
+                },
+                "left": {
+                  "color": "#00b050",
+                  "style": "thin"
+                },
+                "right": {
+                  "color": "#00b050",
+                  "style": "thin"
+                },
+                "top": {
+                  "color": "#00b050",
+                  "style": "thin"
+                }
+              }
+            }
+          }
+        },
+        {
+          "anchor": {
+            "from": {
+              "column": 7,
+              "columnOffset": 0,
+              "row": 0,
+              "rowOffset": 0
+            },
+            "height": 95250,
+            "width": 190500
+          },
+          "bytes": {
+            "$type": "Uint8Array",
+            "byteLength": 77,
+            "sha256": "2bfcf58a68facbfcf0a094a593f525754a80eecc282af5b1fd69af36da712587"
+          },
+          "kind": "image",
+          "mimeType": "image/png",
+          "name": "Bild"
+        }
+      ],
+      "filterButtons": [
+        "A1",
+        "B1"
+      ],
+      "inputMessages": [
+        {
+          "ranges": [
+            {
+              "bottom": 1,
+              "left": 1,
+              "right": 1,
+              "top": 1
+            },
+            {
+              "bottom": 6,
+              "left": 1,
+              "right": 1,
+              "top": 5
+            }
+          ],
+          "text": "Namen eingeben",
+          "title": "Hinweis"
+        }
+      ],
+      "maxColumn": 2,
+      "maxRow": 4,
+      "name": "Data",
+      "rows": {
+        "3": {
+          "hidden": true
+        }
+      },
+      "sparklines": [
+        {
+          "color": "#376092",
+          "emptyCells": "gap",
+          "highColor": "#ff0000",
+          "lineWeight": 0.75,
+          "min": 0,
+          "ref": "C2",
+          "type": "column",
+          "values": [
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "tables": [
+        {
+          "elements": {
+            "firstColumn": {
+              "font": {
+                "bold": true,
+                "color": "#000000"
+              }
+            },
+            "firstColumnStripe": {
+              "fill": {
+                "foreground": "#d9d9d9",
+                "pattern": "solid",
+                "type": "pattern"
+              }
+            },
+            "firstRowStripe": {
+              "fill": {
+                "foreground": "#d9d9d9",
+                "pattern": "solid",
+                "type": "pattern"
+              }
+            },
+            "headerRow": {
+              "borders": {
+                "bottom": {
+                  "color": "#000000",
+                  "style": "thin"
+                }
+              },
+              "font": {
+                "bold": true,
+                "color": "#000000"
+              }
+            },
+            "lastColumn": {
+              "font": {
+                "bold": true,
+                "color": "#000000"
+              }
+            },
+            "totalRow": {
+              "borders": {
+                "top": {
+                  "color": "#000000",
+                  "style": "thin"
+                }
+              },
+              "font": {
+                "bold": true,
+                "color": "#000000"
+              }
+            },
+            "wholeTable": {
+              "borders": {
+                "bottom": {
+                  "color": "#000000",
+                  "style": "thin"
+                },
+                "top": {
+                  "color": "#000000",
+                  "style": "thin"
+                }
+              },
+              "font": {
+                "color": "#000000"
+              }
+            }
+          },
+          "headerRows": 1,
+          "range": {
+            "bottom": 4,
+            "left": 1,
+            "right": 2,
+            "top": 1
+          },
+          "showColumnStripes": false,
+          "showFirstColumn": false,
+          "showLastColumn": false,
+          "showRowStripes": false,
+          "totalsRows": 0
+        }
+      ]
+    }
+  ],
+  "styles": [
+    {
+      "font": {
+        "family": "Calibri",
+        "size": 11
+      }
+    }
+  ],
+  "title": "slicer.xlsx"
+}
