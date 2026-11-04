@@ -44,6 +44,7 @@ test("the demo ODS sample is detected and parsed with saved display text", async
     assert.equal(detectFormat("sample-spreadsheet.ods", "", bytes), "ods");
     const workbook = parseOds(bytes, "sample-spreadsheet.ods");
     assert.deepEqual(workbook.sheets.map(sheet => sheet.name), ["Quarterly results", "Notes"]);
+    assert.deepEqual(workbook.sheets[0].frozen, { rows: 1, columns: 0 }, "settings.xml freezes the header row");
     const cell = ref => workbook.sheets[0].cells.find(entry => entry.ref === ref);
     assert.deepEqual(cell("C2").data.value, { kind: "currency", lexical: "18600", number: 18600, currency: "EUR" });
     assert.equal(cell("C2").display, `18,600.00 ${String.fromCharCode(0x20ac)}`);

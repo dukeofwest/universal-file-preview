@@ -158,7 +158,26 @@ const ods = {
   <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>
 </manifest:manifest>`,
+  // LibreOffice-style view settings: the header row of the first sheet is frozen.
+  "settings.xml": `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-settings xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" office:version="1.3"><office:settings>
+  <config:config-item-set config:name="ooo:view-settings"><config:config-item-map-indexed config:name="Views"><config:config-item-map-entry>
+    <config:config-item config:name="ViewId" config:type="string">view1</config:config-item>
+    <config:config-item-map-named config:name="Tables">
+      <config:config-item-map-entry config:name="Quarterly results">
+        <config:config-item config:name="VerticalSplitMode" config:type="short">2</config:config-item>
+        <config:config-item config:name="VerticalSplitPosition" config:type="int">1</config:config-item>
+        <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
+        <config:config-item config:name="ZoomValue" config:type="int">100</config:config-item>
+        <config:config-item config:name="ShowGrid" config:type="boolean">true</config:config-item>
+        <config:config-item config:name="HasColumnRowHeaders" config:type="boolean">true</config:config-item>
+      </config:config-item-map-entry>
+    </config:config-item-map-named>
+    <config:config-item config:name="ActiveTable" config:type="string">Quarterly results</config:config-item>
+  </config:config-item-map-entry></config:config-item-map-indexed></config:config-item-set>
+</office:settings></office:document-settings>`,
   "meta.xml": `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-meta ${odfNamespaces} office:version="1.3"><office:meta><meta:generator>UniversalFilePreview/demo</meta:generator></office:meta></office:document-meta>`,
   "styles.xml": `<?xml version="1.0" encoding="UTF-8"?>
