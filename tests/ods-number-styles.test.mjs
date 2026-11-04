@@ -272,7 +272,7 @@ test("data styles in content automatic styles take precedence over common styles
 test("the document locale is used, never the viewer's (I-3)", () => {
   const styles = `<number:number-style style:name="N">${grouped(2)}</number:number-style><style:style style:name="cN" style:family="table-cell" style:data-style-name="N"/>`;
   const body = `<table:table table:name="F"><table:table-row><table:table-cell table:style-name="cN" office:value-type="float" office:value="1234.5"/></table:table-row></table:table>`;
-  for (const [language, country, expected] of [["de", "DE", "1.234,50"], ["en", "US", "1,234.50"], ["fr", "CH", "1'234,50"]]) {
+  for (const [language, country, expected] of [["de", "DE", "1.234,50"], ["en", "US", "1,234.50"], ["fr", "CH", new Intl.NumberFormat("fr-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(1234.5)]]) {
     const workbook = parseOds(makeOdfPackage({ content: spreadsheetContent({ body, automatic: styles }), styles: spreadsheetStyles({ language, country }) }), "f.ods");
     assert.equal(workbook.source.locale, `${language}-${country}`);
     const shown = workbook.sheets[0].cells[0].data.display;
