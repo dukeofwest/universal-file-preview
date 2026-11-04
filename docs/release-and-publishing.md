@@ -29,7 +29,7 @@ Verify the repository URL, pushed branch, commit, and CI result with GitHub befo
 
 1. Confirm that the package name is available to and controlled by the intended npm account. The 404 result is not sufficient proof of availability.
 2. Verify secure npm authentication and permission without sharing a token in chat or source control.
-3. The current published version is `0.1.1`; use `0.1.2` for the next patch release. Never reuse a published version.
+3. Never reuse a published version. Use a patch version for compatible fixes and a minor version for compatible features.
 4. Ensure the reviewed source changes are committed and the working tree is clean.
 5. Run the build, tests, typecheck, and package dry run; inspect the tarball contents and secrets.
 6. Install the actual tarball in a clean consumer project and verify package exports, declarations, CSS subpath, and documented examples.

@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-11-04
+
+This release adds OpenDocument spreadsheet previews (ODS, OTS, FODS). It is a minor version because the public `FileFormat` type gains three members; see the compatibility notes below.
 
 - **Compatibility note:** the default renderer registry now includes a renderer for `"ods"`, `"ots"`, and `"fods"`, so registering another renderer for those formats in `createDefaultRendererRegistry()` throws a duplicate-format error; use `new RendererRegistry()` for a fully custom setup.
 - **Compatibility note:** the public `FileFormat` type now also includes `"ods"`, `"ots"`, and `"fods"`. `detectFormat` returns them for OpenDocument spreadsheets (by package `mimetype` entry, flat-XML content, MIME type, or extension). TypeScript code that switches exhaustively over `FileFormat` (for example with a `never` check) needs cases for the new members.
