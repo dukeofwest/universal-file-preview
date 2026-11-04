@@ -1,11 +1,11 @@
 import { DiagnosticCollector } from "../../diagnostics.js";
 import { PreviewError } from "../../errors.js";
 import type { SpreadsheetRange } from "../../model.js";
-import type { ExtendedSpreadsheetCell, ExtendedSpreadsheetColumn, ExtendedWorkbook, ExtendedWorksheet, SpreadsheetCellData, SpreadsheetCellValue, SpreadsheetDefinedName, SpreadsheetDisplay, SpreadsheetFormula, SpreadsheetRowRange } from "../../model-extensions.js";
+import type { DocumentSourceFormat, ExtendedSpreadsheetCell, ExtendedSpreadsheetColumn, ExtendedWorkbook, ExtendedWorksheet, SpreadsheetCellData, SpreadsheetCellValue, SpreadsheetDefinedName, SpreadsheetDisplay, SpreadsheetFormula, SpreadsheetRowRange } from "../../model-extensions.js";
 import { inspectOdfPackage } from "../../package/odf-package.js";
 import { PackageReader } from "../../package/package-reader.js";
 import type { ExpandedName } from "../../xml/xml-namespaces.js";
-import { nsAttr, nsChildren, nsFirst, nsValuePrefix, parseXmlNs, type NsXmlNode } from "../../xml/ns-tree.js";
+import { nsAttr, nsChildren, nsFirst, nsText, nsValuePrefix, parseXmlNs, type NsXmlNode } from "../../xml/ns-tree.js";
 import { streamXml, type StartAction, type XmlStartElement } from "../../xml/xml-stream.js";
 import { columnName } from "../xlsx.js";
 import { EXT, FORMULA_NAMESPACES, ODF } from "./namespaces.js";
@@ -63,11 +63,41 @@ export function parseOds(bytes: Uint8Array, name: string, options: OdsParseOptio
   if (stylesRoot && (stylesRoot.uri !== ODF.office || stylesRoot.local !== "document-styles")) throw new PreviewError("styles.xml is not an OpenDocument styles stream.", "invalid-file");
   if (!reader.has("content.xml")) throw new PreviewError("The spreadsheet has no content.xml.", "invalid-file");
   const chartObjects = new Set([...info.manifest.values()].filter(entry => entry.mediaType === CHART_MEDIA_TYPE).map(entry => entry.path.replace(/\/$/, "")));
-  const producer = info.generator?.split(/[\s$]/)[0] || undefined;
-
-  const content = new ContentReader(stylesRoot, collector, limits, chartObjects);
   const source = reader.readText("content.xml");
-  parsePart(() => streamXml(source, content, { maxSourceLength: limits.maxContentBytes, maxElements: Math.max(250_000, Math.ceil(limits.maxContentBytes / 4)), maxTokens: Math.max(5_000_000, limits.maxContentBytes), maxCaptureElements: limits.maxCaptureElements, ...(options.signal ? { signal: options.signal } : {}) }), "content.xml");
+  return streamSpreadsheet({
+    source, part: "content.xml", mode: "content", format, chartObjects,
+    ...(stylesRoot ? { stylesRoot } : {}), ...(info.generator !== undefined ? { generator: info.generator } : {}),
+    settings: () => settingsPart(reader, collector, options.signal),
+  }, name, limits, collector, options.signal);
+}
+
+/**
+ * A spreadsheet document to stream: content.xml of a package ("content", with styles.xml and
+ * settings.xml read separately) or a whole flat document ("flat", milestone M15), whose styles,
+ * metadata and settings are captured from the same stream.
+ */
+export type SpreadsheetSource = {
+  source: string;
+  /** Prefix of XML error messages, e.g. "content.xml". */
+  part: string;
+  mode: "content" | "flat";
+  format: DocumentSourceFormat;
+  stylesRoot?: NsXmlNode;
+  generator?: string;
+  chartObjects: ReadonlySet<string>;
+  /** office:settings of a package (settings.xml), read after the content. */
+  settings?: () => NsXmlNode | undefined;
+};
+
+/** Embedded images and embedded objects are kept as empty elements inside captured cells and style blocks. */
+const emptyInCapture = (uri: string, local: string) => uri === ODF.office && (local === "binary-data" || local === "document");
+
+/** Streams a spreadsheet document once and assembles the workbook (shared by packages and flat files). */
+export function streamSpreadsheet(input: SpreadsheetSource, name: string, limits: OdsLimits, collector: DiagnosticCollector, signal: AbortSignal | undefined): ExtendedWorkbook {
+  const content = new ContentReader(input.stylesRoot, collector, limits, input.chartObjects, input.mode);
+  parsePart(() => streamXml(input.source, content, { maxSourceLength: limits.maxContentBytes, maxElements: Math.max(250_000, Math.ceil(limits.maxContentBytes / 4)), maxTokens: Math.max(5_000_000, limits.maxContentBytes), maxCaptureElements: limits.maxCaptureElements, emptyInCapture, ...(signal ? { signal } : {}) }), input.part);
+  const format = input.format;
+  const producer = (input.generator ?? content.generator)?.split(/[\s$]/)[0] || undefined;
 
   const sheets = content.sheets;
   if (!sheets.length) throw new PreviewError("ODS workbook contains no readable sheets.", "invalid-file");
@@ -77,7 +107,8 @@ export function parseOds(bytes: Uint8Array, name: string, options: OdsParseOptio
   if (content.missingResults) collector.report("odf.formula.missing-result", { count: content.missingResults });
   if (content.precisionAsShown) collector.report("odf.precision-as-shown");
 
-  const activeSheet = viewSettings(reader, sheets, collector, options.signal);
+  const settings = input.mode === "flat" ? content.settings : input.settings?.();
+  const activeSheet = settings ? applyViewHints(sheets, readViewHints(settings, collector), collector) : undefined;
   const resolver = content.resolver();
   const locale = resolver.locale;
   return {
@@ -96,7 +127,7 @@ export function parseOds(bytes: Uint8Array, name: string, options: OdsParseOptio
  * or parsed is reported as `odf.settings.ignored` (info) and the defaults apply. Cancellation
  * still stops the preview.
  */
-function viewSettings(reader: PackageReader, sheets: ExtendedWorksheet[], collector: DiagnosticCollector, signal: AbortSignal | undefined): number | undefined {
+function settingsPart(reader: PackageReader, collector: DiagnosticCollector, signal: AbortSignal | undefined): NsXmlNode | undefined {
   if (!reader.has("settings.xml")) return undefined;
   let root: NsXmlNode;
   try { root = parseXmlNs(reader.readText("settings.xml"), signal ? { signal } : undefined); }
@@ -106,11 +137,11 @@ function viewSettings(reader: PackageReader, sheets: ExtendedWorksheet[], collec
     return undefined;
   }
   const settings = root.uri === ODF.office && root.local === "document-settings" ? nsFirst(root, ODF.office, "settings") : undefined;
-  if (!settings) { collector.report("odf.settings.ignored", { part: "settings.xml" }); return undefined; }
-  return applyViewHints(sheets, readViewHints(settings, collector), collector);
+  if (!settings) collector.report("odf.settings.ignored", { part: "settings.xml" });
+  return settings;
 }
 
-function resolveLimits(overrides: Partial<OdsLimits> | undefined): OdsLimits {
+export function resolveLimits(overrides: Partial<OdsLimits> | undefined): OdsLimits {
   const limits = { ...DEFAULT_LIMITS };
   for (const [key, value] of Object.entries(overrides ?? {})) {
     if (!Object.hasOwn(DEFAULT_LIMITS, key)) throw new RangeError(`Unknown ODS limit ${key}.`);
@@ -139,7 +170,7 @@ function count(value: string | undefined): number {
   return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : 1;
 }
 
-/** Streams content.xml: style blocks and settings are captured, tables are built row by row. */
+/** Streams content.xml or a flat document: style blocks and settings are captured, tables are built row by row. */
 class ContentReader {
   readonly sheets: ExtendedWorksheet[] = [];
   readonly names: SpreadsheetDefinedName[] = [];
@@ -149,6 +180,10 @@ class ContentReader {
   formulaCells = 0;
   missingResults = 0;
   cellCount = 0;
+  /** Flat documents: meta:generator and office:settings from the same stream. */
+  generator: string | undefined;
+  settings: NsXmlNode | undefined;
+  #commonStyles: NsXmlNode | undefined;
   #fontFaces: NsXmlNode[] = [];
   #automatic: NsXmlNode | undefined;
   #resolver: OdfStyleResolver | undefined;
@@ -156,7 +191,8 @@ class ContentReader {
   #stack: ExpandedName[] = [];
   #sheet: SheetBuilder | undefined;
 
-  constructor(private readonly stylesRoot: NsXmlNode | undefined, private readonly collector: DiagnosticCollector, private readonly limits: OdsLimits, readonly chartObjects: ReadonlySet<string>) {
+  constructor(private readonly stylesRoot: NsXmlNode | undefined, private readonly collector: DiagnosticCollector, private readonly limits: OdsLimits, readonly chartObjects: ReadonlySet<string>, private readonly mode: "content" | "flat") {
+    this.#commonStyles = stylesRoot;
     if (stylesRoot) {
       this.#fontFaces.push(...nsChildren(stylesRoot, ODF.office, "font-face-decls"));
       this.#collectConditionalStyles(nsFirst(stylesRoot, ODF.office, "styles"));
@@ -164,21 +200,27 @@ class ContentReader {
   }
 
   resolver(): OdfStyleResolver {
-    this.#resolver ??= createStyleResolver(this.stylesRoot, this.#automatic, this.#fontFaces, this.collector);
+    this.#resolver ??= createStyleResolver(this.#commonStyles, this.#automatic, this.#fontFaces, this.collector);
     return this.#resolver;
   }
 
   start(element: XmlStartElement, depth: number): StartAction {
     const name = element.name, parent = this.#stack[this.#stack.length - 1];
+    // Document levels are matched by depth too: flat documents embed objects that are documents themselves.
     if (depth === 1) {
-      if (!is(name, ODF.office, "document-content")) throw new PreviewError("content.xml is not an OpenDocument content stream.", "invalid-file");
+      if (this.mode === "flat") {
+        if (!is(name, ODF.office, "document")) throw new PreviewError("The file is not a flat OpenDocument document.", "invalid-file");
+        const mediaType = attrOf(element, ODF.office, "mimetype");
+        if (mediaType === undefined || !Object.hasOwn(ODS_MEDIA_TYPES, mediaType)) throw new PreviewError("Not an OpenDocument spreadsheet.", "unsupported-format");
+      } else if (!is(name, ODF.office, "document-content")) throw new PreviewError("content.xml is not an OpenDocument content stream.", "invalid-file");
       this.formatVersion = attrOf(element, ODF.office, "version");
-    } else if (parent && is(parent, ODF.office, "document-content")) {
+    } else if (depth === 2) {
       if (is(name, ODF.office, "font-face-decls") || is(name, ODF.office, "automatic-styles")) return "capture";
+      if (this.mode === "flat" && (is(name, ODF.office, "styles") || is(name, ODF.office, "meta") || is(name, ODF.office, "settings"))) return "capture";
       if (!is(name, ODF.office, "body")) return "skip";
-    } else if (parent && is(parent, ODF.office, "body")) {
+    } else if (depth === 3 && parent && is(parent, ODF.office, "body")) {
       if (!is(name, ODF.office, "spreadsheet")) return "skip";
-    } else if (parent && is(parent, ODF.office, "spreadsheet")) {
+    } else if (depth === 4 && parent && is(parent, ODF.office, "spreadsheet")) {
       if (is(name, ODF.table, "calculation-settings") || is(name, ODF.table, "named-expressions")) return "capture";
       if (is(name, ODF.table, "dde-links")) { this.collector.report("odf.external-links"); return "skip"; }
       if (is(name, ODF.table, "data-pilot-tables")) { this.collector.report("odf.unsupported.pivot"); return "skip"; }
@@ -202,7 +244,13 @@ class ContentReader {
     }
   }
 
-  captured(node: NsXmlNode): void {
+  captured(node: NsXmlNode, depth: number): void {
+    if (depth === 2 && node.uri === ODF.office) {
+      // Flat documents carry the common styles, metadata and settings in the same stream.
+      if (node.local === "styles") { this.#commonStyles = node; this.#collectConditionalStyles(node); return; }
+      if (node.local === "meta") { const generator = nsFirst(node, ODF.meta, "generator"); if (generator) this.generator = nsText(generator).trim(); return; }
+      if (node.local === "settings") { this.settings = node; return; }
+    }
     if (node.uri === ODF.office && node.local === "font-face-decls") { this.#fontFaces.push(node); return; }
     if (node.uri === ODF.office && node.local === "automatic-styles") { this.#automatic = node; this.#collectConditionalStyles(node); return; }
     if (node.uri === ODF.table && node.local === "calculation-settings") {
@@ -285,6 +333,9 @@ class SheetBuilder {
       if (is(name, ODF.draw, "frame")) this.collector.report("odf.unsupported.drawings");
       if (is(name, ODF.draw, "object") && this.content.isChartObject(attrOf(element, ODF.xlink, "href"))) this.collector.report("odf.unsupported.charts");
       this.#inShapes++;
+      // Embedded objects of flat documents are whole documents (with their own tables); images are base64.
+      if (is(name, ODF.office, "document")) { if (attrOf(element, ODF.office, "mimetype") === CHART_MEDIA_TYPE) this.collector.report("odf.unsupported.charts"); return "skip"; }
+      if (is(name, ODF.office, "binary-data")) return "skip";
       return undefined;
     }
     if (is(name, ODF.table, "shapes")) { this.#inShapes = 1; return undefined; }
@@ -429,6 +480,8 @@ class SheetBuilder {
         if (typeof child === "string") continue;
         if (child.uri === ODF.draw && child.local === "frame") this.collector.report("odf.unsupported.drawings");
         if (child.uri === ODF.draw && child.local === "object" && this.content.isChartObject(nsAttr(child, ODF.xlink, "href"))) this.collector.report("odf.unsupported.charts");
+        // Flat documents embed the object itself (kept as an empty element with its media type).
+        if (child.uri === ODF.office && child.local === "document" && nsAttr(child, ODF.office, "mimetype") === CHART_MEDIA_TYPE) this.collector.report("odf.unsupported.charts");
         walk(child);
       }
     };

@@ -47,28 +47,36 @@ export interface XmlStreamHandler {
 export interface XmlStreamLimits extends XmlLimits {
   /** Maximum elements in one captured subtree, including its root. Default 10,000. */
   readonly maxCaptureElements?: number;
+  /**
+   * Elements whose content is not kept in captured subtrees (for example embedded base64
+   * images): the element appears with its attributes but no children. The content is still
+   * read and checked for well-formedness.
+   */
+  readonly emptyInCapture?: (uri: string, local: string) => boolean;
 }
 
 type MutableNode = ReturnType<typeof openElement>;
-type Capture = { readonly root: MutableNode; readonly stack: MutableNode[]; readonly depth: number; count: number };
+/** `emptying`: nesting depth inside an element whose content is not kept (emptyInCapture). */
+type Capture = { readonly root: MutableNode; readonly stack: MutableNode[]; readonly depth: number; count: number; emptying: number };
 
 export function streamXml(source: string, handler: XmlStreamHandler, limits: XmlStreamLimits = {}): void {
   const maxCapture = limits.maxCaptureElements ?? 10_000;
   if (!Number.isSafeInteger(maxCapture) || maxCapture < 1) throw new RangeError("maxCaptureElements must be a positive safe integer.");
-  const tokenizer = new XmlTokenizer(source, limits), scope = new NamespaceScope();
+  const tokenizer = new XmlTokenizer(source, limits), scope = new NamespaceScope(), emptyInCapture = limits.emptyInCapture;
   // Names of open elements that produce an `end` event (normal elements and skipped roots).
   const open: ExpandedName[] = [];
   let depth = 0, skipping = 0, capture: Capture | undefined;
 
   for (let token = tokenizer.next(); token; token = tokenizer.next()) {
     if (token.type === "text") {
-      if (capture) appendText(capture.stack[capture.stack.length - 1]!, token.value);
+      if (capture) { if (!capture.emptying) appendText(capture.stack[capture.stack.length - 1]!, token.value); }
       else if (!skipping) handler.text?.(token.value, depth);
       continue;
     }
 
     if (token.type === "end") {
       scope.exit();
+      if (capture?.emptying) { capture.emptying--; depth--; continue; }
       if (capture) {
         capture.stack.pop();
         if (!capture.stack.length) { const done = capture; capture = undefined; handler.captured?.(done.root, done.depth); }
@@ -82,9 +90,15 @@ export function streamXml(source: string, handler: XmlStreamHandler, limits: Xml
     const node = openElement(token, scope);
     depth++;
     if (capture) {
+      if (capture.emptying) {
+        if (token.selfClosing) { scope.exit(); depth--; } else capture.emptying++;
+        continue;
+      }
       if (++capture.count > maxCapture) throw new PreviewError("Captured XML subtree exceeds the configured element limit.", "resource-limit");
       capture.stack[capture.stack.length - 1]!.children.push(node);
-      if (token.selfClosing) { scope.exit(); depth--; } else capture.stack.push(node);
+      if (token.selfClosing) { scope.exit(); depth--; }
+      else if (emptyInCapture?.(node.uri, node.local)) capture.emptying = 1;
+      else capture.stack.push(node);
       continue;
     }
     if (skipping) {
@@ -96,7 +110,7 @@ export function streamXml(source: string, handler: XmlStreamHandler, limits: Xml
     const action = handler.start?.({ name, attributes: node.attributes, namespaces: node.namespaces, selfClosing: token.selfClosing }, depth);
     if (action === "capture") {
       if (token.selfClosing) { scope.exit(); handler.captured?.(node, depth); depth--; }
-      else capture = { root: node, stack: [node], depth, count: 1 };
+      else capture = { root: node, stack: [node], depth, count: 1, emptying: 0 };
     } else if (token.selfClosing) {
       scope.exit();
       handler.end?.(name, depth);

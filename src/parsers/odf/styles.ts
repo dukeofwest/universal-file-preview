@@ -65,13 +65,14 @@ function readStyle(node: NsXmlNode): RawStyle | undefined {
 }
 
 /**
- * @param stylesXml the office:document-styles root of styles.xml (its office:styles are read)
+ * @param stylesXml the office:document-styles root of styles.xml (its office:styles are read), or
+ *   the office:styles element itself (flat documents)
  * @param automaticStyles office:automatic-styles from content.xml (or a flat document)
  * @param fontFaces every office:font-face-decls element in the document
  */
 export function createStyleResolver(stylesXml: NsXmlNode | undefined, automaticStyles: NsXmlNode | undefined, fontFaces: readonly NsXmlNode[], collector: DiagnosticCollector): OdfStyleResolver {
   const common = new Map<string, RawStyle>(), automatic = new Map<string, RawStyle>(), defaults = new Map<string, Properties>();
-  const commonStyles = stylesXml ? nsChildren(stylesXml, ODF.office, "styles")[0] : undefined;
+  const commonStyles = stylesXml && stylesXml.uri === ODF.office && stylesXml.local === "styles" ? stylesXml : stylesXml ? nsChildren(stylesXml, ODF.office, "styles")[0] : undefined;
   for (const child of commonStyles?.children ?? []) {
     if (typeof child === "string" || child.uri !== ODF.style) continue;
     if (child.local === "default-style") { const family = nsAttr(child, ODF.style, "family"); if (family && !defaults.has(family)) defaults.set(family, readProperties(child)); }

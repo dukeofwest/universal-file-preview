@@ -7,19 +7,20 @@ import { OdsRenderer } from "../dist/renderers/ods-renderer.js";
 import { RendererRegistry, createDefaultRendererRegistry } from "../dist/renderers/registry.js";
 import { detectFormat } from "../dist/detection/detect-format.js";
 import { parseOds } from "../dist/parsers/odf/ods.js";
+import { parseFods } from "../dist/parsers/odf/flat.js";
 import { writeDemoSamples } from "../scripts/demo-samples.mjs";
 
 // Milestone M12: ODS and OTS reach the shared workbook renderer through the default registry.
 // Rendering itself needs a browser DOM and is covered by scripts/browser-regression.mjs.
-test("OdsRenderer handles ods and ots only", () => {
-  assert.deepEqual(new OdsRenderer().formats, ["ods", "ots"]);
+test("OdsRenderer handles ods, ots and (since M15) fods", () => {
+  assert.deepEqual(new OdsRenderer().formats, ["ods", "ots", "fods"]);
 });
 
-test("the default registry routes ods and ots to OdsRenderer without disturbing other formats", () => {
+test("the default registry routes ods, ots and fods to OdsRenderer without disturbing other formats", () => {
   const registry = createDefaultRendererRegistry();
   assert.ok(registry.get("ods") instanceof OdsRenderer);
   assert.equal(registry.get("ods"), registry.get("ots"), "one renderer instance serves both formats");
-  assert.equal(registry.get("fods"), undefined, "flat ODS arrives in a later milestone");
+  assert.equal(registry.get("fods"), registry.get("ods"), "flat ODS (M15)");
   assert.equal(registry.get("pdf"), undefined);
   for (const format of ["xlsx", "docx", "pptx", "png", "svg"]) assert.ok(registry.get(format), `${format} is still registered`);
   assert.throws(() => registry.register(new OdsRenderer()), /already registered for ods/);
@@ -55,6 +56,11 @@ test("the demo ODS sample is detected and parsed with saved display text", async
     assert.equal(workbook.styles[cell("C2").style].numberFormatInfo.supported, true);
     // The saved text agrees with the data styles, so no mismatch or raw-value notice is raised.
     assert.deepEqual(workbook.diagnostics.map(entry => entry.code), ["odf.formula.cached"]);
+    // The flat demo file holds the same spreadsheet (M15).
+    const flatBytes = new Uint8Array(readFileSync(join(directory, "sample-spreadsheet.fods")));
+    assert.equal(detectFormat("sample-spreadsheet.fods", "", flatBytes), "fods");
+    const flat = parseFods(flatBytes, "sample-spreadsheet.ods");
+    assert.deepEqual(flat, { ...workbook, source: { ...workbook.source, format: "fods" } });
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

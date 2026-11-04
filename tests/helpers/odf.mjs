@@ -80,3 +80,13 @@ export function makeOds({ body, automatic, fontFaces, styles, generator = "Libre
   const meta = odfXml(`<office:document-meta office:version="1.3"><office:meta><meta:generator>${generator}</meta:generator></office:meta></office:document-meta>`, prefixes);
   return makeOdfPackage({ content: spreadsheetContent({ body, automatic, fontFaces }, prefixes), styles: spreadsheetStyles({ styles }, prefixes), meta, ...(extra ? { extra } : {}), ...(mimetype ? { mimetype } : {}), ...(manifest !== undefined ? { manifest } : {}) });
 }
+
+/**
+ * The flat (.fods) equivalent of makeOds: the same meta, font faces, common and automatic styles,
+ * settings and body in one office:document (ODF 1.3 Part 3 §2.2.1), as a UTF-8 string.
+ * `settings` is the inner content of office:settings.
+ */
+export function flatOdsXml({ body, automatic = "", fontFaces = "", styles = "", generator = "LibreOffice/24.8.4.2$Windows_X86_64 LibreOffice_project/test", settings, mimetype = ODS_MEDIA_TYPE, language = "en", country = "US" } = {}, prefixes = {}) {
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document office:version="1.3" office:mimetype="${mimetype}"><office:meta><meta:generator>${generator}</meta:generator></office:meta>${settings !== undefined ? `<office:settings>${settings}</office:settings>` : ""}<office:font-face-decls><style:font-face style:name="Liberation Sans" svg:font-family="'Liberation Sans'"/>${fontFaces}</office:font-face-decls><office:styles><style:default-style style:family="table-cell"><style:text-properties style:font-name="Liberation Sans" fo:font-size="10pt" fo:language="${language}" fo:country="${country}"/></style:default-style><style:style style:name="Default" style:family="table-cell"/>${styles}</office:styles><office:automatic-styles>${automatic}</office:automatic-styles><office:master-styles/><office:body><office:spreadsheet>${body}</office:spreadsheet></office:body></office:document>`, prefixes);
+}
+export const makeFods = (options, prefixes) => new TextEncoder().encode(flatOdsXml(options, prefixes));

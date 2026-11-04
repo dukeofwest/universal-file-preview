@@ -226,6 +226,18 @@ const ods = {
 </office:document-content>`,
 };
 
+/**
+ * The same spreadsheet as a flat OpenDocument file (.fods): the package parts' contents in one
+ * office:document, in the order ODF 1.3 Part 3 §3.1.2 gives (meta, settings, font faces, styles,
+ * automatic styles, body).
+ */
+function flatOds() {
+  const inner = (xml, root) => xml.slice(xml.indexOf(">", xml.indexOf(`<${root}`)) + 1, xml.lastIndexOf(`</${root}>`));
+  const config = 'xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0"';
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document ${odfNamespaces} ${config} office:version="1.3" office:mimetype="${ods.mimetype}">${inner(ods["meta.xml"], "office:document-meta")}${inner(ods["settings.xml"], "office:document-settings")}${inner(ods["styles.xml"], "office:document-styles")}${inner(ods["content.xml"], "office:document-content")}</office:document>`;
+}
+
 function makeZip(entries) {
   const localParts = [];
   const centralParts = [];
@@ -275,5 +287,6 @@ export async function writeDemoSamples(outputDirectory) {
     writeFile(resolve(directory, "sample-workbook.xlsx"), makeZip(xlsx)),
     writeFile(resolve(directory, "sample-deck.pptx"), makeZip(pptx)),
     writeFile(resolve(directory, "sample-spreadsheet.ods"), makeZip(ods)),
+    writeFile(resolve(directory, "sample-spreadsheet.fods"), flatOds()),
   ]);
 }
