@@ -12,6 +12,9 @@ Treat every document as untrusted input. The implementation applies explicit lim
 - ZIP reading defaults to 32 MiB per entry and 4,096 entries, and rejects unsafe paths, duplicate paths, encryption, multi-disk archives, ZIP64, and unsupported compression methods.
 - The XML parser defaults to 250,000 elements, nesting depth 256, and 16 MiB of source/text; DTDs and entity declarations are rejected, and there is no external entity resolution.
 - External OOXML relationships are not followed to retrieve resources.
+- OpenDocument spreadsheets have separate limits: `content.xml` or a whole `.fods` file 128 MiB, `styles.xml` 16 MiB, all parts together 256 MiB, 1,000,000 cells, 1,024 sheets, 32,767 characters per cell, and 10,000 elements per captured cell or style block. Exceeding one stops the preview with a `resource-limit` error rather than truncating content.
+- Encrypted (password-protected) OpenDocument files are refused before any part is parsed. Macros are reported, not run; digital signatures are reported, not verified.
+- OpenDocument external data (linked tables and DDE links) is never fetched, formulas are never evaluated, and only `http`, `https`, and `mailto` cell links are kept.
 - SVG is reduced to an explicit element and attribute allowlist before it is displayed as an image. This intentionally removes SVG features.
 - The XLSX formula evaluator implements a limited subset in project code. It does not use `eval`, execute macros, or fetch linked workbooks.
 

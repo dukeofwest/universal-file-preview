@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Compatibility note:** the default renderer registry now includes a renderer for `"ods"`, `"ots"`, and `"fods"`, so registering another renderer for those formats in `createDefaultRendererRegistry()` throws a duplicate-format error; use `new RendererRegistry()` for a fully custom setup.
 - **Compatibility note:** the public `FileFormat` type now also includes `"ods"`, `"ots"`, and `"fods"`. `detectFormat` returns them for OpenDocument spreadsheets (by package `mimetype` entry, flat-XML content, MIME type, or extension). TypeScript code that switches exhaustively over `FileFormat` (for example with a `never` check) needs cases for the new members.
 - Added OpenDocument spreadsheet previews (`.ods` and `.ots` templates) in the existing workbook grid. Cells show the text the producing application saved, so values are never reformatted for the viewer locale; formula results are shown as last saved (never recalculated) with a notice, and hidden or truncated content is reported. The demo includes a sample ODS file.
 - ODS number formats (data styles) are now read: negative amounts and other conditional sections get their colour (for example red), values without saved text are formatted in the document's own locale, and saved text is checked against the format, with a notice when they differ (the saved text is still what is shown). Formats that cannot be reproduced exactly, such as embedded text, fill characters, non-Gregorian calendars, General, optional decimals and fixed fraction denominators, are left to the saved text.

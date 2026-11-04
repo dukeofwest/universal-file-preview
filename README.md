@@ -5,12 +5,12 @@
 
 **[Open the live Angular, React and Vue demo](https://dukeofwest.github.io/universal-file-preview/)** — try a framework integration with your own file or download a sample document.
 
-Browser-based TypeScript previews for common image formats and selected content from DOCX, XLSX, and PPTX files. The library provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
+Browser-based TypeScript previews for common image formats and selected content from DOCX, XLSX, PPTX, and OpenDocument spreadsheet (ODS) files. The library provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
 
 ## Features
 
 - Preview GIF, PNG, JPEG, WebP, and sanitized SVG using browser image decoding.
-- Render implemented subsets of DOCX, XLSX, and PPTX in the browser.
+- Render implemented subsets of DOCX, XLSX, PPTX, and ODS/OTS/FODS in the browser.
 - Load from a `File`/`Blob`, `ArrayBuffer`, `Uint8Array`, or a URL fetched by the browser.
 - Replace the current file, zoom or fit the preview, download loaded bytes, and clean up renderer resources.
 - Add format handlers through a renderer registry.
@@ -162,7 +162,7 @@ npm run build
 npm run demo
 ```
 
-Then open <http://127.0.0.1:4173/> and choose an image, DOCX, XLSX, or PPTX file.
+Then open <http://127.0.0.1:4173/> and choose an image, DOCX, XLSX, PPTX, ODS, or FODS file.
 
 See [live demo and Pages setup](./docs/live-demo.md) for deployment status and the local framework site preview instructions.
 
@@ -173,6 +173,7 @@ See [live demo and Pages setup](./docs/live-demo.md) for deployment status and t
 | GIF, PNG, JPEG/JPG, WebP | Browser-native image decoding; SVG is sanitized before image decoding. |
 | DOCX | Partial Word text, styles, tables, numbering, headers/footers, page setup, and selected images/drawings. No automatic pagination. |
 | XLSX | Styled worksheet grid with many cell, number, drawing, conditional-format, table, and slicer features. Charts and many formulas are not supported. |
+| ODS, OTS, FODS | OpenDocument spreadsheets in the same worksheet grid: typed values with the producer's saved display text, styles, number formats, merges, hidden data, comments, links, and saved view settings. Formulas are not recalculated; charts, images, and conditional formatting are not shown, and a notice lists what is missing. |
 | PPTX | Slide text, layout/theme/master content, shapes, images, tables, backgrounds, and navigation, with Office fidelity gaps. |
 | PDF, DOC, XLS, PPT | Detection only. No built-in parser or renderer. |
 
@@ -200,10 +201,11 @@ Local file sources are read in the browser and are not uploaded by this library.
 
 ## Limitations
 
-- DOCX, XLSX, and PPTX are partial implementations; visual and feature fidelity varies by file.
+- DOCX, XLSX, PPTX, and ODS are partial implementations; visual and feature fidelity varies by file.
+- ODT and ODP (OpenDocument text and presentations) are not supported yet.
 - There is no built-in PDF or legacy binary Office renderer.
 - Browser rendering and real-file visual comparisons are not covered by the current automated test suite.
-- Remote resources require CORS permission. ZIP64 and encrypted OOXML packages are unsupported.
+- Remote resources require CORS permission. ZIP64 and encrypted OOXML and OpenDocument packages are unsupported.
 - Font availability and image decoding depend on the browser and host system.
 
 See [Troubleshooting](./docs/troubleshooting.md) and [Supported formats](./docs/format-support.md).
