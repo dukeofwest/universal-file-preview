@@ -85,11 +85,11 @@ interface FileRenderer {
 }
 ```
 
-`RendererRegistry.register(renderer)` registers every format in the renderer's `formats` list and returns an unregister function. Duplicate formats in one renderer or formats already registered cause `PreviewError("renderer-error")`. `createDefaultRendererRegistry()` returns the built-in image/DOCX/XLSX/PPTX registry.
+`RendererRegistry.register(renderer)` registers every format in the renderer's `formats` list and returns an unregister function. Duplicate formats in one renderer or formats already registered cause `PreviewError("renderer-error")`. `createDefaultRendererRegistry()` returns the built-in image/DOCX/XLSX/PPTX/ODS registry (the ODS renderer handles `"ods"`, `"ots"`, and `"fods"`). Registering another renderer for one of those formats in the default registry throws; use `new RendererRegistry()` for a fully custom set of renderers.
 
 ## Format and lower-level utilities
 
-- `detectFormat(name, mimeType?, bytes?)` returns `FileFormat`, including `"unknown"`. Detection is not proof that a built-in renderer exists.
+- `detectFormat(name, mimeType?, bytes?)` returns `FileFormat`, including `"unknown"`. OpenDocument spreadsheets are `"ods"`, `"ots"` (template), and `"fods"` (flat XML). Detection is not proof that a built-in renderer exists.
 - `BinaryReader` provides checked byte reads, seeks, endian-aware integer reads, and text reads.
 - `ZipArchive.open(bytes, { maxEntrySize?, maxEntries? })` reads supported ZIP metadata; `entries`, `has(path)`, and `read(path)` expose package entries.
 - `inflateRaw(bytes, expectedSize, maxOutputSize?)` exposes the project's raw-DEFLATE decoder; the default maximum output is 32 MiB.
