@@ -45,7 +45,8 @@
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
-    "docs"
+    "docs",
+    "!docs/research"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
