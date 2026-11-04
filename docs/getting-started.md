@@ -1,6 +1,6 @@
 # Getting started
 
-These examples use the public API emitted from `src/index.ts`. The npm import becomes usable after a release is published; until then, run the examples against the local build.
+These examples use the public API emitted from `src/index.ts`, published on npm as `@dukeofwest/universal-file-preview`. To try unreleased changes, build the repository and install the tarball from `npm pack` instead (see [Installation](./installation.md)).
 
 ## Preview a local file
 

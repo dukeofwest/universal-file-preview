@@ -6,7 +6,7 @@ The repository is `dukeofwest/universal-file-preview`. The deployed Pages site i
 
 <https://dukeofwest.github.io/universal-file-preview/>
 
-The public URL was opened and confirmed to serve the framework selector and compiled applications on 2026-11-02. The deployment workflow is [`deploy-pages.yml`](../.github/workflows/deploy-pages.yml). It builds and tests the library, builds all three applications, uploads the `site/` artifact, and deploys it to GitHub Pages. It runs after pushes to `main` and can also be started manually with `workflow_dispatch`.
+The site is deployed from `main` and serves the framework selector and the compiled applications. The deployment workflow is [`deploy-pages.yml`](../.github/workflows/deploy-pages.yml). It builds and tests the library, builds all three applications, uploads the `site/` artifact, and deploys it to GitHub Pages. It runs after pushes to `main` and can also be started manually with `workflow_dispatch`.
 
 ## Enable GitHub Pages
 
@@ -18,7 +18,9 @@ If the repository does not already use GitHub Actions as its Pages source:
 4. Push the workflow and example changes to `main`, or use **Actions → Deploy framework demos to GitHub Pages → Run workflow** after the workflow exists on the default branch.
 5. Wait for the build and deploy jobs to succeed. Open the published URL shown by the `github-pages` deployment environment and test the Angular, React, and Vue choices.
 
-Users' chosen files are read in the browser by the library and are not uploaded by these examples. The site includes downloadable sample SVG, DOCX, XLSX, and PPTX files for trying the framework applications. These are synthetic demo fixtures. On 2026-11-02, all four samples were loaded successfully in each compiled Angular, React, and Vue app; this smoke check verifies the included samples, not compatibility with arbitrary Office documents or visual equivalence with Office.
+Users' chosen files are read in the browser by the library and are not uploaded by these examples. The site includes downloadable sample SVG, DOCX, XLSX, PPTX, ODS, and FODS files for trying the framework applications. These are synthetic demo fixtures.
+
+On 2026-11-04 an automated headless-Edge check of the deployed site (run from a maintainer machine through the Chrome DevTools Protocol; not part of CI) confirmed that the framework selector loads each app, and that the Angular, React, and Vue apps each previewed all six samples, showed an error for an unsupported file and for two damaged Office files, recovered when another file was chosen, downloaded a byte-identical original, removed the viewer and its injected style on **Clear**, and loaded all assets from below the site path without console errors. This verifies the included samples in one Chromium-based browser; it is not a cross-browser test, a visual comparison with Office or LibreOffice, or evidence of compatibility with arbitrary documents.
 
 ## Build and preview locally
 
