@@ -2,7 +2,7 @@
 //
 // These tests record what the library does TODAY, including surprising behaviour, so later
 // milestones can prove they changed nothing unintentionally. They are not a statement of what
-// the behaviour should be. Cases expected to change on purpose are tagged "changes in M7".
+// the behaviour should be. Cases that changed on purpose later are tagged "changed in M7".
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -112,14 +112,15 @@ const detectionCases = [
   ["empty byte array falls back to extension", "a.png", "", new Uint8Array(0), "png"],
   ["text bytes with unmapped extension", "notes.txt", "", ascii("hello"), "unknown"],
 
-  // OpenDocument: not recognised today. Every row here changes in M7 (spec §8.3).
-  ["ODS extension only (changes in M7)", "sheet.ods", "", undefined, "unknown"],
-  ["OTS extension only (changes in M7)", "sheet.ots", "", undefined, "unknown"],
-  ["FODS extension only (changes in M7)", "sheet.fods", "", undefined, "unknown"],
-  ["ODS MIME without bytes (changes in M7)", "sheet.ods", ODS, undefined, "unknown"],
-  ["ODS package with .ods (changes in M7)", "sheet.ods", "", odsZip, "unknown"],
-  ["ODS package with ODS MIME (changes in M7)", "sheet.ods", ODS, odsZip, "unknown"],
-  ["ODS package with .zip (changes in M7)", "data.zip", "", odsZip, "unknown"],
+  // OpenDocument: these rows were "unknown" at the M0 baseline and changed intentionally in M7
+  // (spec §8.3). They are the only baseline rows allowed to change.
+  ["ODS extension only (changed in M7)", "sheet.ods", "", undefined, "ods"],
+  ["OTS extension only (changed in M7)", "sheet.ots", "", undefined, "ots"],
+  ["FODS extension only (changed in M7)", "sheet.fods", "", undefined, "fods"],
+  ["ODS MIME without bytes (changed in M7)", "sheet.ods", ODS, undefined, "ods"],
+  ["ODS package with .ods (changed in M7)", "sheet.ods", "", odsZip, "ods"],
+  ["ODS package with ODS MIME (changed in M7)", "sheet.ods", ODS, odsZip, "ods"],
+  ["ODS package with .zip (changed in M7)", "data.zip", "", odsZip, "ods"],
 ];
 
 /**
@@ -137,7 +138,8 @@ const detectionQuirks = [
   ["bytes without a known signature fall back to the extension", "report.docx", "", ascii("hello"), "docx"],
 ];
 
-const knownFormats = new Set(["pdf", "docx", "xlsx", "pptx", "doc", "xls", "ppt", "gif", "png", "jpeg", "webp", "svg", "unknown"]);
+// "ods", "ots" and "fods" were added to FileFormat in M7 (decision D1).
+const knownFormats = new Set(["pdf", "docx", "xlsx", "pptx", "doc", "xls", "ppt", "gif", "png", "jpeg", "webp", "svg", "ods", "ots", "fods", "unknown"]);
 const detect = ([, name, mime, input]) => input === undefined ? detectFormat(name, mime) : detectFormat(name, mime, input);
 
 test("M0 detection matrix records current detectFormat behaviour", () => {
