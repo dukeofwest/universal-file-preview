@@ -1,8 +1,9 @@
 import type { DiagnosticCollector } from "../../diagnostics.js";
 import type { SpreadsheetAlignment, SpreadsheetBorderEdge, SpreadsheetBorders, SpreadsheetFont } from "../../model.js";
-import type { ExtendedSpreadsheetStyle, SpreadsheetNumberFormatCategory } from "../../model-extensions.js";
+import type { ExtendedSpreadsheetStyle } from "../../model-extensions.js";
 import { nsAttr, nsChildren, type NsXmlNode } from "../../xml/ns-tree.js";
 import { EXT, ODF } from "./namespaces.js";
+import { createNumberStyles, type OdfNumberFormat, type OdfNumberStyles } from "./number-styles.js";
 import type { TextFontSource } from "./text.js";
 import { lengthToPoints, odfColor, parseBorder, type OdfBorder } from "./units.js";
 
@@ -27,6 +28,8 @@ export interface OdfStyleResolver extends TextFontSource {
   tableProperties(name: string | undefined): { hidden: boolean; tabColor?: string };
   /** style:data-style-name of a table-cell style, through its parent chain. */
   dataStyleName(cellStyleName: string | undefined): string | undefined;
+  /** The data style of a resolved cell style (an index into `styles`). */
+  numberFormat(styleIndex: number): OdfNumberFormat | undefined;
   /** Resolved cell styles; index 0 is the default cell style. Grows as styles are requested. */
   readonly styles: ExtendedSpreadsheetStyle[];
   readonly defaultFont: SpreadsheetFont;
@@ -42,10 +45,6 @@ type Resolved = { properties: Properties; dataStyle?: string };
 const MAX_CHAIN = 64;
 const key = (uri: string, local: string) => `{${uri}}${local}`;
 const familyKey = (family: string, name: string) => `${family}\u0000${name}`;
-const dataStyleCategories: Readonly<Record<string, SpreadsheetNumberFormatCategory>> = {
-  "number-style": "number", "currency-style": "currency", "percentage-style": "percentage",
-  "date-style": "date", "time-style": "time", "boolean-style": "boolean", "text-style": "text",
-};
 
 function readProperties(style: NsXmlNode): Properties {
   const properties: Properties = new Map();
@@ -72,14 +71,6 @@ function readStyle(node: NsXmlNode): RawStyle | undefined {
  */
 export function createStyleResolver(stylesXml: NsXmlNode | undefined, automaticStyles: NsXmlNode | undefined, fontFaces: readonly NsXmlNode[], collector: DiagnosticCollector): OdfStyleResolver {
   const common = new Map<string, RawStyle>(), automatic = new Map<string, RawStyle>(), defaults = new Map<string, Properties>();
-  const dataStyles = new Map<string, SpreadsheetNumberFormatCategory>();
-  const collectDataStyles = (container: NsXmlNode | undefined) => {
-    for (const child of container?.children ?? []) {
-      if (typeof child === "string" || child.uri !== ODF.number || !Object.hasOwn(dataStyleCategories, child.local)) continue;
-      const name = nsAttr(child, ODF.style, "name");
-      if (name !== undefined && !dataStyles.has(name)) dataStyles.set(name, dataStyleCategories[child.local]!);
-    }
-  };
   const commonStyles = stylesXml ? nsChildren(stylesXml, ODF.office, "styles")[0] : undefined;
   for (const child of commonStyles?.children ?? []) {
     if (typeof child === "string" || child.uri !== ODF.style) continue;
@@ -91,8 +82,6 @@ export function createStyleResolver(stylesXml: NsXmlNode | undefined, automaticS
     const style = readStyle(child);
     if (style && !automatic.has(familyKey(style.family, style.name))) automatic.set(familyKey(style.family, style.name), style);
   }
-  collectDataStyles(commonStyles);
-  collectDataStyles(automaticStyles);
 
   const faces = new Map<string, string>();
   for (const declarations of fontFaces) for (const face of nsChildren(declarations, ODF.style, "font-face")) {
@@ -125,10 +114,12 @@ export function createStyleResolver(stylesXml: NsXmlNode | undefined, automaticS
   // The default cell style: default-style table-cell, then the common style named "Default".
   const defaultResolved = resolve("table-cell", "Default") ?? (defaults.has("table-cell") ? { properties: mergeInto(new Map(), defaults.get("table-cell")) } : null);
   if (!defaultResolved) collector.report("odf.style.default-missing", { part: "styles.xml" });
-  const defaultStyle = defaultResolved ? toCellStyle(defaultResolved, faces, dataStyles) : {};
+  const locale = defaultResolved ? localeOf(defaultResolved.properties) : undefined;
+  // Data styles: content automatic styles take precedence over common ones, as for cell styles.
+  const numberStyles = createNumberStyles([automaticStyles, commonStyles], locale);
+  const defaultStyle = defaultResolved ? toCellStyle(defaultResolved, faces, numberStyles) : {};
   const styles: ExtendedSpreadsheetStyle[] = [defaultStyle];
   const defaultFont: SpreadsheetFont = { ...defaultStyle.font, family: defaultStyle.font?.family ?? "Liberation Sans", size: defaultStyle.font?.size ?? 10 };
-  const locale = defaultResolved ? localeOf(defaultResolved.properties) : undefined;
 
   const cellIndexes = new Map<string, number>();
   return {
@@ -140,7 +131,7 @@ export function createStyleResolver(stylesXml: NsXmlNode | undefined, automaticS
       const known = cellIndexes.get(name);
       if (known !== undefined) return known;
       const resolved = resolve("table-cell", name);
-      const index = resolved ? styles.push(toCellStyle(resolved, faces, dataStyles)) - 1 : 0;
+      const index = resolved ? styles.push(toCellStyle(resolved, faces, numberStyles)) - 1 : 0;
       cellIndexes.set(name, index);
       return index;
     },
@@ -153,6 +144,10 @@ export function createStyleResolver(stylesXml: NsXmlNode | undefined, automaticS
       const resolved = name === undefined ? null : resolve("table", name);
       const tabColor = odfColor(property(resolved, "table-properties", ODF.table, "tab-color") ?? property(resolved, "table-properties", EXT.tableooo, "tab-color"));
       return { hidden: property(resolved, "table-properties", ODF.table, "display") === "false", ...(tabColor !== undefined ? { tabColor } : {}) };
+    },
+    numberFormat(styleIndex) {
+      const name = styles[styleIndex]?.numberFormatInfo?.sourceName;
+      return name === undefined ? undefined : numberStyles.get(name);
     },
     dataStyleName(cellStyleName) { return cellStyleName === undefined ? undefined : resolve("table-cell", cellStyleName)?.dataStyle; },
     textRunFont(styleName) {
@@ -206,7 +201,7 @@ function edge(border: OdfBorder): SpreadsheetBorderEdge {
   return { style, color: border.color };
 }
 
-function toCellStyle(resolved: Resolved, faces: ReadonlyMap<string, string>, dataStyles: ReadonlyMap<string, SpreadsheetNumberFormatCategory>): ExtendedSpreadsheetStyle {
+function toCellStyle(resolved: Resolved, faces: ReadonlyMap<string, string>, numberStyles: OdfNumberStyles): ExtendedSpreadsheetStyle {
   const style: ExtendedSpreadsheetStyle = {};
   if (resolved.properties.has("text-properties")) {
     const font = fontOf(resolved.properties, faces);
@@ -240,8 +235,8 @@ function toCellStyle(resolved: Resolved, faces: ReadonlyMap<string, string>, dat
   if (Object.keys(alignment).length) style.alignment = alignment;
 
   if (resolved.dataStyle !== undefined) {
-    const category = dataStyles.get(resolved.dataStyle);
-    if (category) style.numberFormatInfo = { category, sourceName: resolved.dataStyle, supported: false };
+    const format = numberStyles.get(resolved.dataStyle);
+    if (format) style.numberFormatInfo = format.info;
   }
   return style;
 }

@@ -48,7 +48,11 @@ test("the demo ODS sample is detected and parsed with saved display text", async
     assert.deepEqual(cell("C2").data.value, { kind: "currency", lexical: "18600", number: 18600, currency: "EUR" });
     assert.equal(cell("C2").display, `18,600.00 ${String.fromCharCode(0x20ac)}`);
     assert.equal(cell("D4").display, "7.5%");
-    assert.equal(cell("C5").data.value.number, 24675.5, "the saved formula result, not a recalculation");
+    assert.equal(cell("C6").data.value.number, 24365.5, "the saved formula result, not a recalculation");
+    assert.equal(cell("C5").displayColor, "#c9211e", "negative amounts in the data style's colour");
+    assert.equal(cell("C2").displayColor, undefined);
+    assert.equal(workbook.styles[cell("C2").style].numberFormatInfo.supported, true);
+    // The saved text agrees with the data styles, so no mismatch or raw-value notice is raised.
     assert.deepEqual(workbook.diagnostics.map(entry => entry.code), ["odf.formula.cached"]);
   } finally {
     rmSync(directory, { recursive: true, force: true });

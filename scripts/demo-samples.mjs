@@ -135,20 +135,21 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
   <path d="M850 397h152v32H850z" fill="#3478f6"/><path d="M873 323h107v74H873z" fill="#fff" stroke="#c9d8ea" stroke-width="3"/><path d="M897 348h58M897 364h42" stroke="#8c9eb2" stroke-width="7" stroke-linecap="round"/><text x="160" y="615" fill="#40536a" font-family="Arial,sans-serif" font-size="24" font-weight="600">Sample SVG · decoded by the browser</text>
 </svg>`;
 
-// OpenDocument spreadsheet sample: EUR amounts and percentages with saved display text, and
-// totals whose formula results are saved (shown as saved; never recalculated by the viewer).
+// OpenDocument spreadsheet sample: EUR amounts and percentages with saved display text and the
+// data styles that produced it (negative amounts in red through a style:map), and totals whose
+// formula results are saved (shown as saved; never recalculated by the viewer).
 const EURO = String.fromCharCode(0x20ac);
 const odfNamespaces = [
   'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"', 'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"',
   'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"', 'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"',
   'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"', 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"',
   'xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"', 'xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2"',
-  'xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"',
+  'xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"', 'xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"',
 ].join(" ");
 const odsText = (text, style = "") => `<table:table-cell${style ? ` table:style-name="${style}"` : ""} office:value-type="string" calcext:value-type="string"><text:p>${text}</text:p></table:table-cell>`;
 const odsFloat = (value, text, style = "ce3", formula = "") => `<table:table-cell table:style-name="${style}"${formula ? ` table:formula="${formula}"` : ""} office:value-type="float" office:value="${value}" calcext:value-type="float"><text:p>${text}</text:p></table:table-cell>`;
-const odsMoney = (value, text, style = "ce3", formula = "") => `<table:table-cell table:style-name="${style}"${formula ? ` table:formula="${formula}"` : ""} office:value-type="currency" office:currency="EUR" office:value="${value}" calcext:value-type="currency"><text:p>${text} ${EURO}</text:p></table:table-cell>`;
-const odsPercent = (value, text, style = "ce3") => `<table:table-cell table:style-name="${style}" office:value-type="percentage" office:value="${value}" calcext:value-type="percentage"><text:p>${text}</text:p></table:table-cell>`;
+const odsMoney = (value, text, style = "ce5", formula = "") => `<table:table-cell table:style-name="${style}"${formula ? ` table:formula="${formula}"` : ""} office:value-type="currency" office:currency="EUR" office:value="${value}" calcext:value-type="currency"><text:p>${text} ${EURO}</text:p></table:table-cell>`;
+const odsPercent = (value, text, style = "ce6") => `<table:table-cell table:style-name="${style}" office:value-type="percentage" office:value="${value}" calcext:value-type="percentage"><text:p>${text}</text:p></table:table-cell>`;
 const ods = {
   mimetype: "application/vnd.oasis.opendocument.spreadsheet",
   "META-INF/manifest.xml": `<?xml version="1.0" encoding="UTF-8"?>
@@ -171,6 +172,10 @@ const ods = {
   "content.xml": `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content ${odfNamespaces} office:version="1.3">
   <office:automatic-styles>
+    <number:currency-style style:name="N1P0" style:volatile="true"><number:number number:decimal-places="2" number:min-decimal-places="2" number:min-integer-digits="1" number:grouping="true"/><number:text> </number:text><number:currency-symbol number:language="de" number:country="DE">${EURO}</number:currency-symbol></number:currency-style>
+    <number:currency-style style:name="N1"><style:text-properties fo:color="#c9211e"/><number:text>-</number:text><number:number number:decimal-places="2" number:min-decimal-places="2" number:min-integer-digits="1" number:grouping="true"/><number:text> </number:text><number:currency-symbol number:language="de" number:country="DE">${EURO}</number:currency-symbol><style:map style:condition="value()&gt;=0" style:apply-style-name="N1P0"/></number:currency-style>
+    <number:percentage-style style:name="N2"><number:number number:decimal-places="1" number:min-decimal-places="1" number:min-integer-digits="1"/><number:text>%</number:text></number:percentage-style>
+    <number:date-style style:name="N3"><number:day/><number:text> </number:text><number:month number:textual="true"/><number:text> </number:text><number:year number:style="long"/></number:date-style>
     <style:style style:name="co1" style:family="table-column"><style:table-column-properties style:column-width="4.6cm"/></style:style>
     <style:style style:name="co2" style:family="table-column"><style:table-column-properties style:column-width="3.2cm"/></style:style>
     <style:style style:name="ro1" style:family="table-row"><style:table-row-properties style:row-height="0.62cm"/></style:style>
@@ -178,6 +183,10 @@ const ods = {
     <style:style style:name="ce2" style:family="table-cell" style:parent-style-name="Default"><style:table-cell-properties fo:border-bottom="0.06pt solid #c8cdd3" style:vertical-align="middle"/></style:style>
     <style:style style:name="ce3" style:family="table-cell" style:parent-style-name="ce2"/>
     <style:style style:name="ce4" style:family="table-cell" style:parent-style-name="Default"><style:table-cell-properties fo:border-top="1.5pt solid #20242a" fo:background-color="#eef3fb" style:vertical-align="middle"/><style:text-properties fo:font-weight="bold"/></style:style>
+    <style:style style:name="ce5" style:family="table-cell" style:parent-style-name="ce2" style:data-style-name="N1"/>
+    <style:style style:name="ce6" style:family="table-cell" style:parent-style-name="ce2" style:data-style-name="N2"/>
+    <style:style style:name="ce7" style:family="table-cell" style:parent-style-name="ce4" style:data-style-name="N1"/>
+    <style:style style:name="ce8" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="N3"/>
   </office:automatic-styles>
   <office:body><office:spreadsheet>
     <table:table table:name="Quarterly results">
@@ -186,11 +195,12 @@ const ods = {
       <table:table-row table:style-name="ro1">${odsText("Preview toolkit", "ce2")}${odsFloat(1240, "1,240")}${odsMoney(18600, "18,600.00")}${odsPercent(0.184, "18.4%")}</table:table-row>
       <table:table-row table:style-name="ro1">${odsText("Images", "ce2")}${odsFloat(310, "310")}${odsMoney(4650, "4,650.00")}${odsPercent(0.12, "12.0%")}</table:table-row>
       <table:table-row table:style-name="ro1">${odsText("OpenDocument", "ce2")}${odsFloat(95, "95")}${odsMoney(1425.5, "1,425.50")}${odsPercent(0.075, "7.5%")}</table:table-row>
-      <table:table-row table:style-name="ro1">${odsText("Total", "ce4")}${odsFloat(1645, "1,645", "ce4", "of:=SUM([.B2:.B4])")}${odsMoney(24675.5, "24,675.50", "ce4", "of:=SUM([.C2:.C4])")}<table:table-cell table:style-name="ce4"/></table:table-row>
+      <table:table-row table:style-name="ro1">${odsText("Refunds", "ce2")}${odsFloat(-12, "-12")}${odsMoney(-310, "-310.00")}<table:table-cell table:style-name="ce2"/></table:table-row>
+      <table:table-row table:style-name="ro1">${odsText("Total", "ce4")}${odsFloat(1633, "1,633", "ce4", "of:=SUM([.B2:.B5])")}${odsMoney(24365.5, "24,365.50", "ce7", "of:=SUM([.C2:.C5])")}<table:table-cell table:style-name="ce4"/></table:table-row>
     </table:table>
     <table:table table:name="Notes">
       <table:table-column table:style-name="co1" table:number-columns-repeated="2"/>
-      <table:table-row>${odsText("Prepared")}<table:table-cell office:value-type="date" office:date-value="2026-10-28" calcext:value-type="date"><text:p>28 Oct 2026</text:p></table:table-cell></table:table-row>
+      <table:table-row>${odsText("Prepared")}<table:table-cell table:style-name="ce8" office:value-type="date" office:date-value="2026-10-28" calcext:value-type="date"><text:p>28 Oct 2026</text:p></table:table-cell></table:table-row>
       <table:table-row>${odsText("Source")}${odsText("OpenDocument spreadsheet, rendered in the browser")}</table:table-row>
     </table:table>
   </office:spreadsheet></office:body>
