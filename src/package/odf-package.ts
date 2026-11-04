@@ -1,6 +1,7 @@
 import { PreviewError } from "../errors.js";
 import type { DiagnosticCollector } from "../diagnostics.js";
 import { nsAttr, nsChildren, nsFirst, nsText, parseXmlNs, type NsXmlNode } from "../xml/ns-tree.js";
+import { ODF } from "../parsers/odf/namespaces.js";
 import type { PackageReader } from "./package-reader.js";
 
 /**
@@ -27,10 +28,7 @@ export interface OdfPackageInfo {
   readonly thumbnailPath?: string;
 }
 
-// Shared ODF namespace constants arrive in M10 (src/parsers/odf/namespaces.ts).
-const MANIFEST = "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0";
-const OFFICE = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
-const META = "urn:oasis:names:tc:opendocument:xmlns:meta:1.0";
+const { manifest: MANIFEST, office: OFFICE, meta: META } = ODF;
 const MANIFEST_PATH = "META-INF/manifest.xml";
 const THUMBNAIL_PATH = "Thumbnails/thumbnail.png";
 const MAX_MIMETYPE_BYTES = 256, MAX_MANIFEST_BYTES = 4 * 1024 * 1024, MAX_META_BYTES = 1024 * 1024;
