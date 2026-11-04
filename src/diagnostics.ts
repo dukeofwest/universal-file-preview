@@ -86,6 +86,9 @@ export const DIAGNOSTIC_MESSAGES = {
   "odf.package.signed": fixed("info", "The document is digitally signed; the signature was not verified."),
   "odf.package.macros": fixed("info", "The document contains macros; they were not run."),
   "odf.meta.ignored": fixed("info", "Document metadata could not be read."),
+  "odf.value.timezone": { severity: "info", message: count => `${number(count)} date ${plural(count, "value includes", "values include")} a time zone; ${plural(count, "it is", "they are")} shown with ${plural(count, "its", "their")} written date and time.` },
+  "odf.style.cycle": { severity: "info", message: count => `${number(count)} style inheritance ${plural(count, "cycle was", "cycles were")} ignored.` },
+  "odf.style.default-missing": fixed("info", "The document declares no default cell style; Liberation Sans 10 pt is assumed."),
   "odf.version.newer": { severity: "info", message: (_count, params) => `The document uses OpenDocument version ${params.version ?? "(unknown)"}; newer features may be missing.` },
   "odf.settings.ignored": fixed("info", "View settings could not be read."),
 } as const satisfies Readonly<Record<string, DiagnosticDefinition>>;

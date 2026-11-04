@@ -27,6 +27,9 @@ const specifiedCodes = {
   "odf.package.signed": "info",
   "odf.package.macros": "info",
   "odf.meta.ignored": "info", // added in M6 for an unreadable meta.xml
+  "odf.value.timezone": "info", // added in M10 (spec 6.2: dates with a time zone)
+  "odf.style.cycle": "info", // added in M10 (style inheritance cycle guard)
+  "odf.style.default-missing": "info", // added in M10 (spec 6.6: no default cell style)
   "odf.version.newer": "info",
   "odf.settings.ignored": "info",
 };
