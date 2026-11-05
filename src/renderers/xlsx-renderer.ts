@@ -6,6 +6,7 @@ import { parseXlsx } from "../parsers/xlsx.js";
 import { formatGeneral } from "../parsers/xlsx-number-format.js";
 import { renderPptxElement } from "./drawingml-renderer.js";
 import { fontStack } from "./fonts.js";
+import { createImageUrl } from "./image-url.js";
 import type { FileRenderer, RendererContext, RendererInstance } from "./types.js";
 import { allowsGeneralShrink, cellAccessibleLabel, columnWidthPixels, defaultColumnPixels, noticeDiagnostics, rowInfoAt } from "./workbook-layout.js";
 
@@ -260,7 +261,7 @@ class SheetView {
     const header = (target: HTMLElement, text: string, x: number, y: number, w: number, h: number, extra = "") => {
       if (w <= 0 || h <= 0) return;
       const item = document.createElement("div"); item.className = `ufp-cell-header${extra}`; item.textContent = text;
-      item.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;font:${font};line-height:${h - 1}px`;
+      setStyles(item, { position: "absolute", left: toPx(x), top: toPx(y), width: toPx(w), height: toPx(h), font, "line-height": toPx(h - 1) });
       target.append(item);
     };
     for (let column = window.c1; column <= window.c2; column++) header(this.top, columnName(column), this.colX[column]!, 0, this.colX[column + 1]! - this.colX[column]!, this.headerHeight);
@@ -277,8 +278,8 @@ class SheetView {
     const gridlines = this.sheet.showGridLines !== false;
     if (gridlines) {
       const top = y(rows.r1), bottom = y(rows.r2 + 1), left = x(columns.c1), right = x(columns.c2 + 1);
-      for (let column = columns.c1; column <= columns.c2; column++) if (x(column + 1) > x(column)) lines.append(box("ufp-gridline", x(column + 1) - 1, top, 1, bottom - top, `background:${GRIDLINE}`));
-      for (let row = rows.r1; row <= rows.r2; row++) if (y(row + 1) > y(row)) lines.append(box("ufp-gridline", left, y(row + 1) - 1, right - left, 1, `background:${GRIDLINE}`));
+      for (let column = columns.c1; column <= columns.c2; column++) if (x(column + 1) > x(column)) lines.append(box("ufp-gridline", x(column + 1) - 1, top, 1, bottom - top, { background: GRIDLINE }));
+      for (let row = rows.r1; row <= rows.r2; row++) if (y(row + 1) > y(row)) lines.append(box("ufp-gridline", left, y(row + 1) - 1, right - left, 1, { background: GRIDLINE }));
     }
     // Merged areas whose anchor lies outside the block still need painting.
     const merges = new Set<SpreadsheetRange>();
@@ -315,15 +316,15 @@ class SheetView {
 
   private fillElement(effective: Effective, rect: { left: number; top: number; width: number; height: number }, merged: boolean, offsetY: number): HTMLElement {
     // Excel paints a fill over the cell and all four surrounding gridline pixels; unfilled merged areas paint white over their inner gridlines only.
-    const element = box("ufp-cell-fill", rect.left - 1, rect.top - 1, rect.width + 1, rect.height + 1, "");
+    const element = box("ufp-cell-fill", rect.left - 1, rect.top - 1, rect.width + 1, rect.height + 1);
     // Pattern brushes are anchored to the sheet origin (the gridline pixel above/left of A1), so neighbouring cells join seamlessly.
-    const css = fillCss(effective.fill, rect.left - this.colX[1]!, rect.top + offsetY - this.rowY[1]!);
-    if (css) element.style.cssText += css;
+    const fill = fillStyles(effective.fill, rect.left - this.colX[1]!, rect.top + offsetY - this.rowY[1]!);
+    if (fill) setStyles(element, fill);
     else if (merged) Object.assign(element.style, { background: "#fff", left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width - 1}px`, height: `${rect.height - 1}px` });
     const bar = effective.conditional?.dataBar;
     if (bar) {
       const inset = Math.max(1, Math.round(2 * this.scale)), span = rect.width - inset * 2 - 1;
-      const barElement = box("ufp-data-bar", 1 + inset + span * bar.start, 1 + inset, Math.max(0, span * (bar.end - bar.start)), rect.height - inset * 2 - 1, "");
+      const barElement = box("ufp-data-bar", 1 + inset + span * bar.start, 1 + inset, Math.max(0, span * (bar.end - bar.start)), rect.height - inset * 2 - 1);
       barElement.style.background = bar.gradient ? `linear-gradient(to ${bar.negative ? "left" : "right"}, ${bar.color}, ${mix(bar.color, "#ffffff", 0.9)})` : bar.color;
       if (bar.border) barElement.style.boxShadow = `inset 0 0 0 1px ${bar.border}`;
       element.append(barElement);
@@ -345,7 +346,7 @@ class SheetView {
     const diagonal = effective.style.borders?.diagonal;
     if (diagonal && (effective.style.borders?.diagonalDown || effective.style.borders?.diagonalUp)) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("class", "ufp-cell-diagonal"); svg.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px;overflow:visible;pointer-events:none`;
+      svg.setAttribute("class", "ufp-cell-diagonal"); setStyles(svg, { position: "absolute", left: toPx(left), top: toPx(top), width: toPx(right - left), height: toPx(bottom - top), overflow: "visible", "pointer-events": "none" });
       for (const [enabled, x1, y1, x2, y2] of [[effective.style.borders.diagonalDown, 0, 0, right - left, bottom - top], [effective.style.borders.diagonalUp, 0, bottom - top, right - left, 0]] as const) {
         if (!enabled) continue;
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -364,12 +365,12 @@ class SheetView {
     const result: HTMLElement[] = [];
     if (this.sheet.comments?.[ref] !== undefined) {
       const size = Math.max(4, Math.round(6 * this.scale));
-      const marker = box("ufp-cell-comment", rect.left + rect.width - size - 1, rect.top, size, size, `border-top:${size}px solid #d00;border-left:${size}px solid transparent;width:0;height:0`);
+      const marker = box("ufp-cell-comment", rect.left + rect.width - size - 1, rect.top, size, size, { "border-top": `${size}px solid #d00`, "border-left": `${size}px solid transparent`, width: "0", height: "0" });
       marker.title = this.sheet.comments[ref]!; result.push(marker);
     }
     if (this.sheet.filterButtons?.includes(ref)) {
       const size = Math.min(rect.height - 2, Math.round(16 * this.scale));
-      const button = box("ufp-filter-button", rect.left + rect.width - size - 2, rect.top + rect.height - size - 2, size, size, "");
+      const button = box("ufp-filter-button", rect.left + rect.width - size - 2, rect.top + rect.height - size - 2, size, size);
       button.innerHTML = `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="15" fill="#fff" stroke="#a6a6a6"/><path d="M4.5 6.5h7L8 10.5z" fill="#444"/></svg>`;
       result.push(button);
     }
@@ -415,9 +416,12 @@ class SheetView {
     const color = cell.displayColor ?? font.color ?? "#000000";
     const verticalAlign = alignment.vertical ?? "bottom";
     const justify = verticalAlign === "top" || verticalAlign === "justify" || verticalAlign === "distributed" ? "flex-start" : verticalAlign === "center" ? "center" : "flex-end";
-    element.style.cssText = `left:${box_.left}px;top:${box_.top}px;width:${box_.width - 1}px;height:${box_.height - 1}px;font:${fontCss};color:${color};padding:0 ${padding}px;justify-content:${justify};`
-      + `text-align:${horizontal === "right" ? "right" : horizontal === "center" || horizontal === "centerContinuous" ? "center" : horizontal === "justify" || horizontal === "distributed" ? "justify" : "left"};`
-      + `white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? `line-height:${cellLinePixels(font, z)}px;` : ""}${boldSpacing ? `letter-spacing:${boldSpacing}px;` : ""}${indent ? (horizontal === "right" ? `padding-right:${padding + indent}px;` : `padding-left:${padding + indent}px;`) : ""}`;
+    setStyles(element, {
+      left: toPx(box_.left), top: toPx(box_.top), width: toPx(box_.width - 1), height: toPx(box_.height - 1), font: fontCss, color, padding: `0 ${padding}px`, "justify-content": justify,
+      "text-align": horizontal === "right" ? "right" : horizontal === "center" || horizontal === "centerContinuous" ? "center" : horizontal === "justify" || horizontal === "distributed" ? "justify" : "left",
+      "white-space": wrap ? "pre-wrap" : "pre", ...(wrap ? { "line-height": toPx(cellLinePixels(font, z)) } : {}), ...(boldSpacing ? { "letter-spacing": toPx(boldSpacing) } : {}),
+      ...(indent ? (horizontal === "right" ? { "padding-right": toPx(padding + indent) } : { "padding-left": toPx(padding + indent) }) : {}),
+    });
     if (horizontal === "distributed") element.style.textAlignLast = "justify";
     if (box_.width > rect.width && this.sheet.showGridLines !== false && !effective.fill) element.style.background = "#fff";
     const decorations = [font.underline ? "underline" : "", font.strike ? "line-through" : ""].filter(Boolean).join(" ");
@@ -435,7 +439,7 @@ class SheetView {
       line.style.display = "flex";
       const before = document.createElement("span"), after = document.createElement("span"), filler = document.createElement("span");
       before.textContent = text.slice(0, cell.repeat.index); after.textContent = text.slice(cell.repeat.index);
-      filler.style.cssText = "flex:1;overflow:hidden;white-space:pre"; filler.textContent = cell.repeat.char === " " ? "" : cell.repeat.char.repeat(200);
+      setStyles(filler, { flex: "1", overflow: "hidden", "white-space": "pre" }); filler.textContent = cell.repeat.char === " " ? "" : cell.repeat.char.repeat(200);
       content.append(before, filler, after); if (content !== line) line.append(content);
     } else if (horizontal === "fill") {
       const unit = measure(text), count = unit > 0 ? Math.max(1, Math.floor(available / unit)) : 1;
@@ -521,7 +525,7 @@ class SheetView {
 
   private iconElement(icon: { set: string; index: number }, rect: { left: number; top: number; width: number; height: number }): HTMLElement {
     const size = Math.round(Math.min(16 * this.scale, rect.height - 2));
-    const element = box("ufp-cell-icon", rect.left + Math.round(2 * this.scale), rect.top + rect.height - size - Math.round(2 * this.scale), size, size, "");
+    const element = box("ufp-cell-icon", rect.left + Math.round(2 * this.scale), rect.top + rect.height - size - Math.round(2 * this.scale), size, size);
     element.innerHTML = iconSvg(icon.set, icon.index);
     return element;
   }
@@ -532,17 +536,19 @@ class SheetView {
       const rect = this.anchorRect(drawing);
       if (!rect || rect.width < 0 || rect.height < 0 || rect.width + rect.height <= 0) continue;
       if (drawing.kind === "image") {
-        const blob = new Blob([drawing.bytes.slice().buffer as ArrayBuffer], { type: drawing.mimeType }), url = URL.createObjectURL(blob);
+        // Unsupported or mislabelled media is left out (image-url.ts checks types and sanitizes SVG).
+        const url = createImageUrl(drawing.bytes, drawing.mimeType);
+        if (!url) continue;
         this.imageUrls.push(url);
         const image = document.createElement("img"); image.className = "ufp-sheet-image"; image.src = url; image.alt = drawing.name ?? "";
-        image.style.cssText = `position:absolute;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:1`;
+        setStyles(image, { position: "absolute", left: toPx(rect.left), top: toPx(rect.top), width: toPx(rect.width), height: toPx(rect.height), "z-index": "1" });
         this.body.append(image);
         continue;
       }
       if (drawing.kind === "slicer") { this.body.append(this.slicerElement(drawing, rect)); continue; }
       // Elements are laid out in the object's EMU frame; the container maps that frame onto the anchor's cells (lengths in cqw of the container).
       const container = document.createElement("div"); container.className = "ufp-sheet-drawing";
-      container.style.cssText = `left:${rect.left}px;top:${rect.top}px;width:${Math.max(1, rect.width)}px;height:${Math.max(1, rect.height)}px`;
+      setStyles(container, { left: toPx(rect.left), top: toPx(rect.top), width: toPx(Math.max(1, rect.width)), height: toPx(Math.max(1, rect.height)) });
       if (drawing.name) { container.setAttribute("role", "img"); container.setAttribute("aria-label", drawing.name); }
       const { frame } = drawing, frameData = { title: "", paragraphs: [], width: frame.width, height: frame.height, elements: drawing.elements };
       for (const element of drawing.elements) container.append(renderPptxElement({ ...element, left: element.left - frame.left, top: element.top - frame.top }, frameData, this.imageUrls, { runFontLines: true }));
@@ -557,15 +563,18 @@ class SheetView {
     const frame = document.createElement("div"); frame.className = "ufp-sheet-slicer";
     frame.setAttribute("role", "list"); frame.setAttribute("aria-label", slicer.caption ?? slicer.name);
     const border = Math.max(1, px(1)), inset = px(8), gap = Math.max(1, px(3));
-    frame.style.cssText = `left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;border:${border}px solid ${style.wholeTable?.borders?.left?.color ?? "#bfbfbf"};font:${fontPx}px ${family};${fillCss(style.wholeTable?.fill, 0, 0) || "background:#fff;"}`;
+    setStyles(frame, {
+      left: toPx(rect.left), top: toPx(rect.top), width: toPx(rect.width), height: toPx(rect.height), border: `${border}px solid ${style.wholeTable?.borders?.left?.color ?? "#bfbfbf"}`, font: `${fontPx}px ${family}`,
+      ...fillStyles(style.wholeTable?.fill, 0, 0) ?? { background: "#fff" },
+    });
     const inner = { width: rect.width - border * 2, height: rect.height - border * 2 };
     let itemsTop = inset;
     if (slicer.caption !== undefined) {
       const header = style.header ?? defaults.header!, height = px(29);
-      const caption = box("ufp-slicer-caption", inset, 0, Math.max(0, inner.width - inset * 2 - px(64)), height, `line-height:${height}px;font-weight:${header.font?.bold === false ? "normal" : "bold"};color:${header.font?.color ?? style.wholeTable?.font?.color ?? "#000"}`);
+      const caption = box("ufp-slicer-caption", inset, 0, Math.max(0, inner.width - inset * 2 - px(64)), height, { "line-height": toPx(height), "font-weight": header.font?.bold === false ? "normal" : "bold", color: header.font?.color ?? style.wholeTable?.font?.color ?? "#000" });
       caption.textContent = slicer.caption;
-      const rule = box("ufp-slicer-rule", inset, height, Math.max(0, inner.width - inset * 2), Math.max(1, px(1)), `background:${header.borders?.bottom?.color ?? "#bfbfbf"}`);
-      const icons = box("ufp-slicer-icons", inner.width - px(59), Math.round((height - px(16)) / 2), px(48), px(16), "");
+      const rule = box("ufp-slicer-rule", inset, height, Math.max(0, inner.width - inset * 2), Math.max(1, px(1)), { background: header.borders?.bottom?.color ?? "#bfbfbf" });
+      const icons = box("ufp-slicer-icons", inner.width - px(59), Math.round((height - px(16)) / 2), px(48), px(16));
       icons.setAttribute("aria-hidden", "true");
       // Multi-select and clear-filter buttons; the clear button's cross turns red while the slicer filters.
       icons.innerHTML = `<svg viewBox="0 0 48 16" width="100%" height="100%"><path d="M1.5 3.5l1.5 1.5 3-3M1.5 8.5l1.5 1.5 3-3M1.5 13.5l1.5 1.5 3-3" fill="none" stroke="#595959"/><path d="M8 4.5h8M8 9.5h8M8 14.5h8" stroke="#595959"/><path d="M32.5 2.5h11l-4.5 5v5l-2-1.2v-3.8z" fill="none" stroke="#7f7f7f"/><path d="M41.5 10.5l4 4M45.5 10.5l-4 4" stroke="${slicer.filtered ? "#e81123" : "#a6a6a6"}" stroke-width="1.2"/></svg>`;
@@ -576,23 +585,25 @@ class SheetView {
     const columns = Math.max(1, slicer.columnCount), itemHeight = Math.max(1, Math.round(Math.round(slicer.itemHeight / EMU_PER_PX) * z));
     const rows = Math.ceil(slicer.items.length / columns), overflow = rows * (itemHeight + gap) - gap > area.height;
     const itemsWidth = overflow ? area.width - px(23) : area.width, itemWidth = (itemsWidth - gap * (columns - 1)) / columns;
-    const items = box("ufp-slicer-items", inset, itemsTop, Math.max(0, itemsWidth), area.height, "overflow:hidden");
+    const items = box("ufp-slicer-items", inset, itemsTop, Math.max(0, itemsWidth), area.height, { overflow: "hidden" });
     slicer.items.forEach((item, index) => {
       const column = index % columns, row = Math.floor(index / columns);
       const left = Math.round(column * (itemWidth + gap)), right = Math.round(column * (itemWidth + gap) + itemWidth), top = row * (itemHeight + gap);
       if (top >= area.height) return;
       const part = item.selected ? (item.hasData ? "selectedItemWithData" : "selectedItemWithNoData") : (item.hasData ? "unselectedItemWithData" : "unselectedItemWithNoData");
       const look = style[part] ?? defaults[part]!, edge = look.borders?.left?.color;
-      const button = box("ufp-slicer-item", left, top, right - left, itemHeight, `${fillCss(look.fill, 0, 0)}color:${look.font?.color ?? "#000"};line-height:${itemHeight - (edge ? border * 2 : 0)}px;padding-left:${inset}px;${edge ? `border:${border}px solid ${edge};` : ""}`);
+      const button = box("ufp-slicer-item", left, top, right - left, itemHeight, {
+        ...fillStyles(look.fill, 0, 0), color: look.font?.color ?? "#000", "line-height": toPx(itemHeight - (edge ? border * 2 : 0)), "padding-left": toPx(inset), ...(edge ? { border: `${border}px solid ${edge}` } : {}),
+      });
       button.setAttribute("role", "listitem"); button.setAttribute("aria-selected", String(item.selected));
       button.textContent = item.text;
       items.append(button);
     });
     frame.append(items);
     if (overflow) {
-      const track = box("ufp-slicer-scroll", inner.width - inset - px(18), itemsTop, px(18), area.height, "background:#f0f0f0");
+      const track = box("ufp-slicer-scroll", inner.width - inset - px(18), itemsTop, px(18), area.height, { background: "#f0f0f0" });
       const visible = Math.max(0.1, Math.min(1, area.height / (rows * (itemHeight + gap))));
-      track.append(box("ufp-slicer-thumb", px(5), px(17), px(8), Math.max(px(8), (area.height - px(34)) * visible), "background:#c2c2c2"));
+      track.append(box("ufp-slicer-thumb", px(5), px(17), px(8), Math.max(px(8), (area.height - px(34)) * visible), { background: "#c2c2c2" }));
       frame.append(track);
     }
     return frame;
@@ -603,7 +614,7 @@ class SheetView {
     const z = this.scale, width = rect.width - 1, height = rect.height - 1, padX = Math.max(2, Math.round(4 * z)), padY = Math.max(2, Math.round(4 * z));
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "ufp-sparkline"); svg.setAttribute("aria-hidden", "true");
-    svg.style.cssText = `position:absolute;left:${rect.left}px;top:${rect.top}px;width:${Math.max(0, width)}px;height:${Math.max(0, height)}px;overflow:hidden;pointer-events:none`;
+    setStyles(svg, { position: "absolute", left: toPx(rect.left), top: toPx(rect.top), width: toPx(Math.max(0, width)), height: toPx(Math.max(0, height)), overflow: "hidden", "pointer-events": "none" });
     const values = sparkline.emptyCells === "zero" ? sparkline.values.map(value => value ?? 0) : sparkline.values;
     const ordered = sparkline.rightToLeft ? [...values].reverse() : values, numbers = ordered.filter((value): value is number => value !== null);
     if (!numbers.length || width <= padX * 2 || height <= padY * 2) return svg;
@@ -666,7 +677,7 @@ class SheetView {
     if (!this.selected) return;
     const { row, column } = this.selected, range = this.mergeAt.get(key(row, column)) ?? this.covered.get(key(row, column)) ?? { top: row, left: column, bottom: row, right: column };
     const left = this.colX[range.left]!, top = this.rowY[range.top]!;
-    const element = box("ufp-grid-selection", left - 1, top - 1, this.colX[range.right + 1]! - left + 1, this.rowY[range.bottom + 1]! - top + 1, "");
+    const element = box("ufp-grid-selection", left - 1, top - 1, this.colX[range.right + 1]! - left + 1, this.rowY[range.bottom + 1]! - top + 1);
     const cell = this.cells.get(key(range.top, range.left));
     element.setAttribute("aria-label", `${columnName(range.left)}${range.top}: ${cell?.display ?? cell?.value ?? ""}`);
     element.setAttribute("aria-selected", "true");
@@ -783,8 +794,8 @@ const dashes: Record<string, number[]> = { dotted: [1, 1], hair: [1, 1], dashed:
 /** A border segment centred on the gridline pixel; thicker lines grow to both sides. */
 function borderLine(edge: Edge, x: number, y: number, length: number, horizontal: boolean): HTMLElement {
   const weight = borderWeight(edge.style), offset = weight === 1 ? 0 : weight === 2 ? -1 : -1;
-  const element = horizontal ? box("ufp-cell-border", x, y + offset, length + (weight > 1 ? 1 : 0), weight, "") : box("ufp-cell-border", x + offset, y, weight, length + (weight > 1 ? 1 : 0), "");
-  if (edge.style === "double") element.style.cssText += horizontal ? `border-top:1px solid ${edge.color};border-bottom:1px solid ${edge.color}` : `border-left:1px solid ${edge.color};border-right:1px solid ${edge.color}`;
+  const element = horizontal ? box("ufp-cell-border", x, y + offset, length + (weight > 1 ? 1 : 0), weight) : box("ufp-cell-border", x + offset, y, weight, length + (weight > 1 ? 1 : 0));
+  if (edge.style === "double") setStyles(element, horizontal ? { "border-top": `1px solid ${edge.color}`, "border-bottom": `1px solid ${edge.color}` } : { "border-left": `1px solid ${edge.color}`, "border-right": `1px solid ${edge.color}` });
   else if (dashes[edge.style]) {
     const pattern = dashes[edge.style]!, total = pattern.reduce((sum, value) => sum + value, 0);
     let at = 0;
@@ -816,16 +827,16 @@ const patterns: Record<string, (x: number, y: number) => boolean> = {
   lightTrellis: (x, y) => (x + y) % 4 === 0 || ((x - y) % 4 + 4) % 4 === 0,
 };
 const patternCache = new Map<string, string>();
-function fillCss(fill: SpreadsheetFill | undefined, left: number, top: number): string {
-  if (!fill) return "";
+function fillStyles(fill: SpreadsheetFill | undefined, left: number, top: number): Styles | undefined {
+  if (!fill) return undefined;
   if (fill.type === "gradient") {
     const stops = fill.stops.map(stop => `${stop.color} ${Math.round(stop.position * 100)}%`).join(",");
-    if (fill.gradient === "path") return `background:radial-gradient(circle at ${(fill.left ?? 0.5) * 100}% ${(fill.top ?? 0.5) * 100}%,${stops});`;
-    return `background:linear-gradient(${fill.degree + 90}deg,${stops});`;
+    if (fill.gradient === "path") return { background: `radial-gradient(circle at ${(fill.left ?? 0.5) * 100}% ${(fill.top ?? 0.5) * 100}%,${stops})` };
+    return { background: `linear-gradient(${fill.degree + 90}deg,${stops})` };
   }
-  if (fill.pattern === "solid") return `background:${fill.foreground ?? "#000"};`;
+  if (fill.pattern === "solid") return { background: fill.foreground ?? "#000" };
   const bitmap = patterns[fill.pattern];
-  if (!bitmap) return `background:${fill.background ?? "#fff"};`;
+  if (!bitmap) return { background: fill.background ?? "#fff" };
   const cacheKey = `${fill.pattern}|${fill.foreground}|${fill.background}`;
   let url = patternCache.get(cacheKey);
   if (!url) {
@@ -834,7 +845,7 @@ function fillCss(fill: SpreadsheetFill | undefined, left: number, top: number): 
     url = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' shape-rendering='crispEdges'><rect width='8' height='8' fill='${fill.background ?? "#ffffff"}'/><g fill='${fill.foreground ?? "#000000"}'>${rects}</g></svg>`)}")`;
     patternCache.set(cacheKey, url);
   }
-  return `background:${url};background-size:8px 8px;background-position:${-left}px ${-top}px;`;
+  return { background: url, "background-size": "8px 8px", "background-position": `${-left}px ${-top}px` };
 }
 
 function mix(a: string, b: string, amount: number): string {
@@ -869,11 +880,24 @@ function iconSvg(set: string, index: number): string {
   return svg(`${ring}<circle cx="8" cy="8" r="${ring ? 5.2 : 6.5}" fill="${count === 4 && level === 3 ? black : color}"/>`);
 }
 
-function box(className: string, left: number, top: number, width: number, height: number, css: string): HTMLDivElement {
+function box(className: string, left: number, top: number, width: number, height: number, styles: Styles = {}): HTMLDivElement {
   const element = document.createElement("div"); element.className = className;
-  element.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${Math.max(0, width)}px;height:${Math.max(0, height)}px;${css}`;
+  setStyles(element, { position: "absolute", left: toPx(left), top: toPx(top), width: toPx(Math.max(0, width)), height: toPx(Math.max(0, height)) });
+  setStyles(element, styles);
   return element;
 }
+
+/** CSS property name to value. */
+type Styles = Readonly<Record<string, string>>;
+/**
+ * Sets each declaration on its own, never through a concatenated cssText. A value taken from the
+ * file (font names, colours) can then only be a valid value for its property or be ignored; it
+ * cannot add further declarations.
+ */
+function setStyles(element: HTMLElement | SVGElement, styles: Styles): void {
+  for (const [name, value] of Object.entries(styles)) element.style.setProperty(name, value);
+}
+function toPx(value: number): string { return `${value}px`; }
 
 function isNumericCell(cell: SpreadsheetCell): boolean {
   if (cell.type && cell.type !== "n" && cell.type !== "d") return false;

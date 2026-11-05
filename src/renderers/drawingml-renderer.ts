@@ -1,5 +1,6 @@
 import type { Paragraph, Presentation, PptxCamera, PptxElement, PptxFill, PptxImageElement, PptxLine, PptxLineElement, PptxReflection, PptxShapeElement, PptxTextElement } from "../model.js";
 import { fontStack } from "./fonts.js";
+import { createImageUrl } from "./image-url.js";
 import { presetGeometryPath } from "./ppt-geometry.js";
 
 /** `runFontLines`: paragraph line boxes take the first run's font, so line spacing follows that font as in Office (spreadsheet drawings). */
@@ -20,8 +21,11 @@ export function renderPptxElement(element: PptxElement, slideData: Presentation[
   };
   if (element.kind === "image") {
     const frame = document.createElement("div"); frame.className = "ufp-pptx-image"; position(frame); frame.style.overflow = "hidden";
-    const image = document.createElement("img"), bytes = new Uint8Array(element.image.bytes.byteLength); bytes.set(element.image.bytes);
-    const url = URL.createObjectURL(new Blob([bytes.buffer], { type: element.image.mimeType })); imageUrls.push(url);
+    // Unsupported or mislabelled media leaves an empty frame (image-url.ts checks types and sanitizes SVG).
+    const url = createImageUrl(element.image.bytes, element.image.mimeType);
+    if (!url) return frame;
+    imageUrls.push(url);
+    const image = document.createElement("img");
     image.src = url; image.alt = element.image.alt ?? ""; image.draggable = false;
     image.style.position = "absolute"; image.style.maxWidth = "none"; image.style.maxHeight = "none";
     if (element.duotone) {
@@ -293,7 +297,8 @@ function renderPptxGeometry(element: PptxShapeElement | PptxLineElement, slideDa
 
   // Shapes with useBgFill show the part of the slide background picture that lies beneath them.
   const backgroundImage = element.kind === "shape" && element.useBackgroundFill ? slideData.elements?.find((candidate): candidate is PptxImageElement => candidate.kind === "image" && Boolean(candidate.isBackground)) : undefined;
-  if (backgroundImage) {
+  const backgroundUrl = backgroundImage && createImageUrl(backgroundImage.image.bytes, backgroundImage.image.mimeType);
+  if (backgroundImage && backgroundUrl) {
     const clip = document.createElementNS(svgNamespace, "clipPath"), clipId = pptUniqueId("clip");
     clip.id = clipId;
     for (const pathData of paths.filter(path => path.filled)) {
@@ -302,10 +307,9 @@ function renderPptxGeometry(element: PptxShapeElement | PptxLineElement, slideDa
       clip.append(clipShape);
     }
     defs.append(clip);
-    const bytes = new Uint8Array(backgroundImage.image.bytes.byteLength); bytes.set(backgroundImage.image.bytes);
-    const url = URL.createObjectURL(new Blob([bytes.buffer], { type: backgroundImage.image.mimeType })); imageUrls.push(url);
+    imageUrls.push(backgroundUrl);
     const image = document.createElementNS(svgNamespace, "image");
-    image.setAttribute("href", url); image.setAttribute("preserveAspectRatio", "none");
+    image.setAttribute("href", backgroundUrl); image.setAttribute("preserveAspectRatio", "none");
     image.setAttribute("x", String(-element.left)); image.setAttribute("y", String(-element.top));
     image.setAttribute("width", String(slideWidth)); image.setAttribute("height", String(slideHeight));
     if (backgroundImage.duotone) image.setAttribute("filter", `url(#${appendPptDuotoneFilter(defs, backgroundImage.duotone)})`);

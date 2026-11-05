@@ -15,7 +15,7 @@ Browser-based TypeScript previews for common image formats and selected content 
 - Replace the current file, zoom or fit the preview, download loaded bytes, and clean up renderer resources.
 - Add format handlers through a renderer registry.
 - Apply default viewer styles inside the viewer root; optionally import the package CSS entry.
-- Bound input and archive resource use, reject unsafe ZIP paths, and return typed preview errors.
+- Limit file size, ZIP entry size and count, and XML size, reject unsafe ZIP paths, and return typed preview errors.
 
 The supported-format matrix lists what is detected, parsed, rendered, and covered by automated tests. The Office renderers are partial implementations and do not claim pixel-perfect compatibility with Microsoft Office.
 
@@ -197,7 +197,7 @@ The public API is framework-agnostic. The repository includes tested Angular, Re
 
 ## Security and privacy
 
-Local file sources are read in the browser and are not uploaded by this library. URL sources are fetched by the browser and remain subject to CORS and your application’s network policies. SVG is restricted to an allowlist; external OOXML relationships are not followed. Inputs are resource-bounded, but synchronous document parsing runs on the main thread. Review [Security](./docs/security.md) before previewing untrusted files.
+Local file sources are read in the browser and are not uploaded by this library. URL sources are fetched by the browser and remain subject to CORS and your application’s network policies. SVG, including SVG embedded in Office files, is restricted to an allowlist; external OOXML relationships are not followed. Inputs have size limits, but there is no total decompression budget for Office files yet, and document parsing runs synchronously on the main thread, so a hostile file can freeze the page. Read [Security](./docs/security.md), including its deployment guidance, before previewing untrusted files.
 
 ## Limitations
 

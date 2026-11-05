@@ -1,6 +1,15 @@
+/**
+ * Font names come from the file. Only letters, marks, digits, spaces and a few punctuation marks
+ * that occur in real font names are accepted, so a name can never leave its quoted CSS string:
+ * no quotes, backslashes, semicolons, braces, angle brackets, newlines or other control
+ * characters. Any other name falls back to the generic family.
+ */
+const safeFontName = /^[\p{L}\p{M}\p{N}_.&()+@-][\p{L}\p{M}\p{N} _.&()+@-]{0,127}$/u;
+
 /** CSS font stack for an Office font name, with metric-compatible local fallbacks for fonts that are often missing (cloud fonts). */
 export function fontStack(fontFamily: string): string {
-  const family = fontFamily.replace(/["\\]/g, "").trim();
+  const family = fontFamily.trim().replace(/ {2,}/g, " ");
+  if (!safeFontName.test(family)) return "sans-serif";
   const normalized = family.toLowerCase();
   const fallback = /mono|courier|consolas|menlo|terminal/.test(normalized) ? "monospace"
     : /arial|aptos|calibri|franklin|gothic|helvetica|segoe|tahoma|trebuchet|verdana|sans/.test(normalized) ? "sans-serif"

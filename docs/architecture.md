@@ -34,7 +34,7 @@ Image and embedded-image renderers create object URLs and revoke them on replace
 
 ## Security boundaries
 
-File bytes are treated as untrusted. Source size, ZIP entry size/count, package paths, XML size/element/depth, and selected calculation ranges are bounded in code. ZIP64, encryption, multi-disk ZIP, unsupported compression, encrypted OpenDocument packages, XML DTDs, and external entities are rejected. External OOXML relationships are not followed for embedded content. SVG is sanitized before it is shown. See [Security](./security.md).
+File bytes are treated as untrusted. Source size, ZIP entry size/count, package paths, XML size/element/depth, and selected calculation ranges are bounded in code. ZIP64, encryption, multi-disk ZIP, unsupported compression, encrypted OpenDocument packages, XML DTDs, and external entities are rejected. External OOXML relationships are not followed for embedded content. There is no total decompression budget for OOXML packages yet. Every image blob URL is created in `renderers/image-url.ts`, which checks the type against the content's signature and sanitizes all SVG, including SVG embedded in Office files. See [Security](./security.md).
 
 Parsing is synchronous once bytes have loaded, so large files can block the main thread. The code does not execute document scripts or formula expressions with `eval`; the XLSX evaluator supports only a limited built-in function/operator set, and OpenDocument formulas are not evaluated at all.
 

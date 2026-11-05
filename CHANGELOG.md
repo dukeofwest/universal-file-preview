@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Security:** hardened the handling of embedded images and spreadsheet styles. Upgrading is recommended for applications that preview files from untrusted sources.
+- Embedded images are shown only when their content matches a supported image type; media that does not match is no longer displayed. Unusual font names in documents may now fall back to a generic font.
+- The viewer root now uses CSS containment (`contain: layout paint style`, `isolation: isolate`), so elements with `position: fixed` placed inside `.ufp-root` are positioned and clipped relative to the viewer.
+- The security documentation now lists the remaining known gaps (no total decompression budget for Office files, no overall limit on XLSX computation, synchronous parsing) and recommends a deployment and Content Security Policy for untrusted files.
+
 ## 0.2.0 - 2026-11-04
 
 This release adds OpenDocument spreadsheet previews (ODS, OTS, FODS). It is a minor version because the public `FileFormat` type gains three members; see the compatibility notes below.

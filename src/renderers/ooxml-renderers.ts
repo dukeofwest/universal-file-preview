@@ -3,6 +3,7 @@ import { parseDocx, parsePptx } from "../parsers/ooxml.js";
 import type { Paragraph, Presentation, PptxElement, PptxFill, PptxImageElement, PptxLine, PptxLineElement, PptxShapeElement, PptxTextElement, TextRun, WordPageLayout } from "../model.js";
 import { fontStack } from "./fonts.js";
 import { pptFillCss, renderPptxElement } from "./drawingml-renderer.js";
+import { createImageUrl } from "./image-url.js";
 import type { FileRenderer, RendererContext, RendererInstance } from "./types.js";
 
 export class DocxRenderer implements FileRenderer {
@@ -167,8 +168,10 @@ function renderRun(run: TextRun, imageUrls: string[] = [], pageNumber = 1): HTML
   if (run.drawing) return renderWordDrawing(run.drawing);
   if (run.image) {
     const image = document.createElement("img");
-    const buffer = new Uint8Array(run.image.bytes.byteLength); buffer.set(run.image.bytes);
-    const url = URL.createObjectURL(new Blob([buffer.buffer], { type: run.image.mimeType })); imageUrls.push(url);
+    // Unsupported or mislabelled media is left out (image-url.ts checks types and signatures).
+    const url = createImageUrl(run.image.bytes, run.image.mimeType);
+    if (!url) return document.createElement("span");
+    imageUrls.push(url);
     image.src = url; image.alt = run.image.alt ?? ""; image.className = "ufp-word-image";
     if (run.image.width) image.style.width = `${run.image.width}px`;
     if (run.image.height) image.style.height = `${run.image.height}px`;

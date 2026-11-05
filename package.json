@@ -48,7 +48,8 @@
     "CONTRIBUTING.md",
     "SECURITY.md",
     "docs",
-    "!docs/research"
+    "!docs/research",
+    "!docs/security"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
