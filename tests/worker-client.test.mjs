@@ -327,8 +327,8 @@ test("the worker side reads only exact parse requests", () => {
 
 test("errors leave the worker as a known code and a bounded message only", () => {
   assert.deepEqual(errorMessage(2, new PreviewError("bad zip", "invalid-file")), { v: 1, type: "error", id: 2, error: { code: "invalid-file", message: "bad zip" } });
-  // Anything else (a TypeError from a bug, a value thrown) is not passed on in detail.
-  assert.deepEqual(errorMessage(2, new TypeError("secret internals")), { v: 1, type: "error", id: 2, error: { code: "renderer-error", message: "The file could not be previewed." } });
+  // Anything else (a TypeError from a bug, a value thrown) is not passed on in detail, as in main-thread mode.
+  assert.deepEqual(errorMessage(2, new TypeError("secret internals")), { v: 1, type: "error", id: 2, error: { code: "parse-error", message: "The file could not be previewed." } });
   assert.equal(errorMessage(1, new PreviewError("y".repeat(900), "parse-error")).error.message.length, MAX_ERROR_MESSAGE_LENGTH);
 });
 

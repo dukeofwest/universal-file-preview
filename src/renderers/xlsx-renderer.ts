@@ -2,7 +2,9 @@ import type { FileFormat } from "../detection/detect-format.js";
 import type { PreviewDiagnostic } from "../diagnostics.js";
 import type { SpreadsheetBorderEdge, SpreadsheetCell, SpreadsheetConditional, SpreadsheetDrawing, SpreadsheetFill, SpreadsheetFont, SpreadsheetRange, SpreadsheetRun, SpreadsheetSlicer, SpreadsheetSlicerStyle, SpreadsheetSparkline, SpreadsheetStyle, SpreadsheetTable } from "../model.js";
 import type { ExtendedSpreadsheetCell, ExtendedSpreadsheetColumn, ExtendedWorkbook, ExtendedWorksheet } from "../model-extensions.js";
-import { parseXlsx } from "../parsers/xlsx.js";
+import { PreviewError } from "../errors.js";
+import { parseModel, viewerLocale } from "../parsers/parse-model.js";
+import type { DocumentModel } from "../worker/protocol.js";
 import { formatGeneral } from "../parsers/xlsx-number-format.js";
 import { renderPptxElement } from "./drawingml-renderer.js";
 import { fontStack } from "./fonts.js";
@@ -31,9 +33,13 @@ type Effective = { style: SpreadsheetStyle; font: SpreadsheetFont; fill?: Spread
 
 export class XlsxRenderer implements FileRenderer {
   readonly formats: readonly FileFormat[] = ["xlsx"];
-  render({ bytes, file }: RendererContext): RendererInstance {
-    const locale = typeof navigator !== "undefined" && navigator.language ? navigator.language : "en-US";
-    return renderWorkbook(parseXlsx(bytes, file.name, { locale }), { locale });
+  render(context: RendererContext): RendererInstance {
+    return this.renderParsed(parseModel("xlsx", context.bytes, context.file.name, { locale: viewerLocale() }), context);
+  }
+  /** Renders a parsed model (from the main thread or the parser worker). Internal. */
+  renderParsed(parsed: DocumentModel, _context: RendererContext): RendererInstance {
+    if (parsed.kind !== "workbook") throw new PreviewError("The document model does not match the renderer.", "renderer-error");
+    return renderWorkbook(parsed, { locale: viewerLocale() });
   }
 }
 

@@ -64,9 +64,12 @@ export function readParseRequest(data: unknown): ParseRequest | undefined {
   return { v: 1, type: "parse", id, format, name, ...(locale !== undefined ? { locale } : {}), bytes };
 }
 
-/** The error as the worker reports it: a known code and a bounded message. */
+/**
+ * The error as the worker reports it: a known code and a bounded message. Any other error (a bug, a value
+ * thrown) is reported without detail, as FilePreviewer reports it in main-thread mode.
+ */
 export function errorMessage(id: number, error: unknown): ErrorMessage {
-  const code = error instanceof PreviewError && ERROR_CODES.has(error.code) ? error.code : "renderer-error";
+  const code = error instanceof PreviewError && ERROR_CODES.has(error.code) ? error.code : "parse-error";
   const message = error instanceof PreviewError ? error.message : "The file could not be previewed.";
   return { v: 1, type: "error", id, error: { code, message: message.slice(0, MAX_ERROR_MESSAGE_LENGTH) } };
 }

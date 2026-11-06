@@ -1,5 +1,7 @@
 import type { FileFormat } from "../detection/detect-format.js";
-import { parseDocx, parsePptx } from "../parsers/ooxml.js";
+import { PreviewError } from "../errors.js";
+import { parseModel, viewerLocale } from "../parsers/parse-model.js";
+import type { DocumentModel } from "../worker/protocol.js";
 import type { Paragraph, Presentation, PptxElement, PptxFill, PptxImageElement, PptxLine, PptxLineElement, PptxShapeElement, PptxTextElement, TextRun, WordPageLayout } from "../model.js";
 import { fontStack } from "./fonts.js";
 import { pptFillCss, renderPptxElement } from "./drawingml-renderer.js";
@@ -8,8 +10,13 @@ import type { FileRenderer, RendererContext, RendererInstance } from "./types.js
 
 export class DocxRenderer implements FileRenderer {
   readonly formats: readonly FileFormat[] = ["docx"];
-  render({ bytes, file }: RendererContext): RendererInstance {
-    const model = parseDocx(bytes, file.name), root = document.createElement("div");
+  render(context: RendererContext): RendererInstance {
+    return this.renderParsed(parseModel("docx", context.bytes, context.file.name, { locale: viewerLocale() }), context);
+  }
+  /** Renders a parsed model (from the main thread or the parser worker). Internal. */
+  renderParsed(parsed: DocumentModel, _context: RendererContext): RendererInstance {
+    if (parsed.kind !== "word") throw new PreviewError("The document model does not match the renderer.", "renderer-error");
+    const model = parsed, root = document.createElement("div");
     root.className = "ufp-word-document";
     const imageUrls: string[] = [];
     const pageWidth = model.page ? model.page.width / 72 * 96 : 816;
@@ -298,8 +305,13 @@ export { XlsxRenderer } from "./xlsx-renderer.js";
 
 export class PptxRenderer implements FileRenderer {
   readonly formats: readonly FileFormat[] = ["pptx"];
-  render({ bytes, file }: RendererContext): RendererInstance {
-    const presentation = parsePptx(bytes, file.name), root = document.createElement("div"); root.className = "ufp-presentation";
+  render(context: RendererContext): RendererInstance {
+    return this.renderParsed(parseModel("pptx", context.bytes, context.file.name, { locale: viewerLocale() }), context);
+  }
+  /** Renders a parsed model (from the main thread or the parser worker). Internal. */
+  renderParsed(parsed: DocumentModel, _context: RendererContext): RendererInstance {
+    if (parsed.kind !== "presentation") throw new PreviewError("The document model does not match the renderer.", "renderer-error");
+    const presentation = parsed, root = document.createElement("div"); root.className = "ufp-presentation";
     const nav = document.createElement("div"); nav.className = "ufp-slide-nav";
     const previous = document.createElement("button"), next = document.createElement("button"), counter = document.createElement("span");
     previous.type = next.type = "button"; previous.textContent = "Previous slide"; next.textContent = "Next slide";

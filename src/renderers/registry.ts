@@ -4,6 +4,18 @@ import { PreviewError } from "../errors.js";
 import { ImageRenderer } from "./image-renderer.js";
 import { DocxRenderer, PptxRenderer, XlsxRenderer } from "./ooxml-renderers.js";
 import { OdsRenderer } from "./ods-renderer.js";
+import type { RendererContext, RendererInstance } from "./types.js";
+import type { DocumentModel } from "../worker/protocol.js";
+
+/** A built-in renderer, which can render a model parsed elsewhere (by the parser worker). Internal. */
+export interface ParsedModelRenderer extends FileRenderer { renderParsed(model: DocumentModel, context: RendererContext): RendererInstance }
+/**
+ * True only for the library's own document renderers. Renderers an application registers always parse and
+ * render through render(), on the main thread, even if they happen to have a renderParsed method.
+ */
+export function isBuiltInDocumentRenderer(renderer: FileRenderer): renderer is ParsedModelRenderer {
+  return renderer instanceof DocxRenderer || renderer instanceof PptxRenderer || renderer instanceof XlsxRenderer || renderer instanceof OdsRenderer;
+}
 
 export class RendererRegistry {
   readonly #renderers = new Map<FileFormat, FileRenderer>();
