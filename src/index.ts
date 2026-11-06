@@ -1,5 +1,5 @@
 export { FilePreviewer } from "./api/file-previewer.js";
-export type { PreviewFile, PreviewOptions } from "./api/types.js";
+export type { PreviewFile, PreviewLoadOptions, PreviewOptions, PreviewWorkerOptions } from "./api/types.js";
 export { BinaryReader } from "./binary/binary-reader.js";
 export { detectFormat } from "./detection/detect-format.js";
 export type { FileFormat } from "./detection/detect-format.js";

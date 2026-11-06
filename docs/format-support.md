@@ -97,7 +97,7 @@ References:
 - Embedded images are shown only as PNG, JPEG, GIF, BMP, WebP, or sanitized SVG, with the type taken from the content's signature; mislabelled media is not shown.
 - DOCX, PPTX, and XLSX packages have a 256 MiB total decompression budget, each part is read once, and XLSX calculation, hyperlink ranges, and images have work limits; see [Security](./security.md).
 - Browser-native image decoding still runs in the browser process; this package cannot promise isolation from browser codec vulnerabilities.
-- Cancellation is supported for fetch-based sources and lifecycle replacement. Synchronous parsing cannot be preempted while a parser is executing on the main thread.
+- Cancellation is supported for fetch-based sources, lifecycle replacement, and `load(file, { signal })`. A parser executing on the main thread cannot be preempted; in worker mode a running parse is stopped by terminating the worker, and a timeout ends parses that take too long.
 
 ## Test evidence and status
 

@@ -1,8 +1,11 @@
 import { detectFormat } from "../detection/detect-format.js";
 import { PreviewError } from "../errors.js";
-import { createDefaultRendererRegistry, type RendererRegistry } from "../renderers/registry.js";
-import type { RendererInstance } from "../renderers/types.js";
-import type { PreviewFile, PreviewOptions } from "./types.js";
+import { viewerLocale } from "../parsers/parse-model.js";
+import { createDefaultRendererRegistry, isBuiltInDocumentRenderer, type ParsedModelRenderer, type RendererRegistry } from "../renderers/registry.js";
+import type { RendererContext, RendererInstance } from "../renderers/types.js";
+import { isWorkerFormat, type WorkerFormat } from "../worker/protocol.js";
+import { WorkerClient, WorkerStartupError } from "../worker/worker-client.js";
+import type { PreviewFile, PreviewLoadOptions, PreviewOptions } from "./types.js";
 import { attachViewerStyles, type ViewerStyles } from "./viewer-styles.js";
 
 export class FilePreviewer {
@@ -13,6 +16,9 @@ export class FilePreviewer {
   readonly #registry: RendererRegistry;
   readonly #maxFileSize: number;
   readonly #styles: ViewerStyles;
+  /** Worker mode (options.worker): one parser worker per viewer, created on first use. */
+  readonly #worker: WorkerClient | undefined;
+  readonly #fallback: "error" | "main-thread";
   #controller: AbortController | undefined;
   #instance: RendererInstance | undefined;
   #generation = 0;
@@ -26,6 +32,12 @@ export class FilePreviewer {
     this.#maxFileSize = options.maxFileSize ?? 128 * 1024 * 1024;
     if (!Number.isSafeInteger(this.#maxFileSize) || this.#maxFileSize < 1) throw new RangeError("maxFileSize must be a positive safe integer.");
     if (options.styleNonce !== undefined && (typeof options.styleNonce !== "string" || options.styleNonce === "")) throw new TypeError("styleNonce must be a non-empty string.");
+    const worker = options.worker;
+    if (worker !== undefined && (typeof worker !== "object" || worker === null)) throw new TypeError("worker must be an object.");
+    this.#fallback = worker?.fallback ?? "error";
+    if (this.#fallback !== "error" && this.#fallback !== "main-thread") throw new RangeError('worker.fallback must be "error" or "main-thread".');
+    // Validates create and the timeouts; no worker is created until a file needs one.
+    this.#worker = worker ? new WorkerClient({ create: worker.create, maxFileSize: this.#maxFileSize, ...(worker.startupTimeout !== undefined ? { startupTimeout: worker.startupTimeout } : {}), ...(worker.timeout !== undefined ? { timeout: worker.timeout } : {}) }) : undefined;
     this.#root = document.createElement("div"); this.#root.className = "ufp-root";
     this.#toolbar = document.createElement("div"); this.#toolbar.className = "ufp-toolbar"; this.#toolbar.setAttribute("role", "toolbar");
     this.#status = document.createElement("div"); this.#status.className = "ufp-status"; this.#status.setAttribute("role", "status"); this.#status.setAttribute("aria-live", "polite");
@@ -39,21 +51,30 @@ export class FilePreviewer {
 
   open(): Promise<void> { return this.load(this.options.file); }
 
-  async load(file: PreviewFile): Promise<void> {
+  async load(file: PreviewFile, options: PreviewLoadOptions = {}): Promise<void> {
     this.#assertAlive();
+    const external = options.signal;
+    if (external !== undefined && (typeof external !== "object" || external === null || typeof external.addEventListener !== "function")) throw new TypeError("signal must be an AbortSignal.");
     this.#controller?.abort();
     this.#instance?.destroy?.(); this.#instance = undefined;
     this.#currentFile = undefined; this.#currentBytes = undefined;
     this.#content.replaceChildren(); this.#status.textContent = "Loading preview..."; this.#status.className = "ufp-status";
     this.#controller = new AbortController();
     const controller = this.#controller, generation = ++this.#generation;
+    // The caller's signal cancels this load like a new load does; its listener is removed when the load ends.
+    const cancel = () => controller.abort(external?.reason);
+    if (external?.aborted) controller.abort(external.reason);
+    else external?.addEventListener("abort", cancel, { once: true });
     try {
       const { bytes, mimeType } = await readSource(file, controller.signal, this.#maxFileSize);
       this.#checkCurrent(generation, controller.signal);
       const format = detectFormat(file.name, file.mimeType ?? mimeType, bytes);
       const renderer = this.#registry.get(format);
       if (!renderer) throw new PreviewError(`Preview is not available for ${format === "unknown" ? "this file type" : format.toUpperCase()}.`, "unsupported-format");
-      const instance = await renderer.render({ file, format, bytes, signal: controller.signal });
+      const context: RendererContext = { file, format, bytes, signal: controller.signal };
+      const instance = this.#worker && isBuiltInDocumentRenderer(renderer) && isWorkerFormat(format)
+        ? await this.#renderInWorker(this.#worker, renderer, format, context, generation)
+        : await renderer.render(context);
       if (controller.signal.aborted || generation !== this.#generation) { instance.destroy?.(); return; }
       this.#instance = instance; this.#content.replaceChildren(instance.element);
       if (this.#zoom !== 1) instance.setZoom?.(this.#zoom);
@@ -66,10 +87,29 @@ export class FilePreviewer {
       const previewError = error instanceof PreviewError ? error : controller.signal.aborted
         ? new PreviewError("Preview loading was cancelled.", "aborted", { cause: error })
         : new PreviewError("The file could not be previewed.", "parse-error", { cause: error });
-      if (previewError.code === "aborted") return;
+      // Cancelled by the caller's signal (a new load or destroy() has already moved the generation on): not an error.
+      if (previewError.code === "aborted") { this.#status.textContent = "Preview loading was cancelled."; this.#status.className = "ufp-status"; return; }
       this.#status.textContent = previewError.message; this.#status.className = "ufp-status ufp-status-error";
       throw previewError;
+    } finally {
+      external?.removeEventListener("abort", cancel);
     }
+  }
+
+  /**
+   * Worker mode: parses in the worker, then renders the validated model on the main thread. A start-up failure
+   * of a load that is still current falls back to main-thread parsing when the options allow it; cancellation
+   * never does.
+   */
+  async #renderInWorker(worker: WorkerClient, renderer: ParsedModelRenderer, format: WorkerFormat, context: RendererContext, generation: number): Promise<RendererInstance> {
+    let model;
+    try { model = await worker.parse(format, context.bytes, context.file.name, { signal: context.signal, locale: viewerLocale() }); }
+    catch (error) {
+      if (error instanceof WorkerStartupError && this.#fallback === "main-thread" && !context.signal.aborted && generation === this.#generation) return renderer.render(context);
+      throw error;
+    }
+    this.#checkCurrent(generation, context.signal);
+    return renderer.renderParsed(model, context);
   }
 
   #currentFile: PreviewFile | undefined;
@@ -87,7 +127,7 @@ export class FilePreviewer {
 
   destroy(): void {
     if (this.#destroyed) return;
-    this.#destroyed = true; this.#generation++; this.#controller?.abort(); this.#instance?.destroy?.();
+    this.#destroyed = true; this.#generation++; this.#controller?.abort(); this.#worker?.destroy(); this.#instance?.destroy?.();
     if (this.#downloadUrl) URL.revokeObjectURL(this.#downloadUrl);
     this.#styles.release(); this.#root.remove();
   }

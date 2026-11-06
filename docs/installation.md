@@ -20,12 +20,12 @@ The commands use the package name configured in `package.json`.
 
 ## Requirements
 
-- **Browser:** a DOM-capable browser with `Blob`, `URL.createObjectURL`, `fetch`, `AbortController`, `DOMParser`, and image element support. The project has no tested minimum browser-version matrix yet.
+- **Browser:** a DOM-capable browser with `Blob`, `URL.createObjectURL`, `fetch`, `AbortController`, and image element support; module workers for the optional worker mode. The project has no tested minimum browser-version matrix yet.
 - **JavaScript:** the package is emitted as ES modules targeting ES2022. CommonJS output is not provided.
 - **Node.js for development:** CI currently runs on Node.js 22. A minimum supported development Node.js version has not been declared.
 - **Dependencies:** no runtime dependencies or peer dependencies. TypeScript is the only declared development dependency.
 - **Styles:** the viewer injects its scoped styles. Import `@dukeofwest/universal-file-preview/styles.css` only if an application also needs the prefixed styles outside the viewer root.
-- **Workers:** none are required or emitted.
+- **Workers:** optional. Worker mode (the `worker` option) needs the package's `./worker` entry point (`dist/worker.js` and the modules it imports) served from your origin and started by your application as a module worker; see the [API reference](./api-reference.md#worker-mode). Without the option, no worker is used.
 - **Remote sources:** the browser must be allowed to fetch the URL under the server's CORS policy.
 
 ## Use a local checkout

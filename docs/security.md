@@ -28,7 +28,7 @@ Treat every document as untrusted input. The implementation applies the limits a
 
 ### Known gaps
 
-- **Parsing is synchronous** and runs on the page's main thread. The limits above are meant to prevent a small file from causing disproportionate work (they were checked against the crafted cases in the test suite, not proven complete), but processing time still grows with the size of the file: a crafted file of a few megabytes, like a large legitimate one, can keep the page unresponsive for several seconds, and closing or replacing the viewer cannot interrupt the parser.
+- **Parsing runs on the page's main thread by default.** The limits above are meant to prevent a small file from causing disproportionate work (they were checked against the crafted cases in the test suite, not proven complete), but processing time still grows with the size of the file: a crafted file of a few megabytes, like a large legitimate one, can keep the page unresponsive for several seconds, and closing or replacing the viewer cannot interrupt a main-thread parse. **Worker mode** (the `worker` option, see the [API reference](./api-reference.md#worker-mode)) moves parsing of the document formats into a Web Worker: the page stays responsive, a parse that takes longer than the timeout (30 seconds by default) is stopped by terminating the worker, and closing or replacing the viewer stops it too. Receiving and rendering a large result still runs on the main thread (for the largest accepted workbooks, a few seconds), and a worker shares the page's process, so it does not lower peak memory use.
 - **Browser image decoding** runs in the browser process; this package cannot isolate the page from browser codec vulnerabilities. The pixel limits rely on the dimensions in the image header.
 - **The limits are fixed.** They cannot yet be changed by the application.
 
@@ -41,7 +41,8 @@ Because of these gaps, previewing untrusted uploads can still make the browser t
 - **Apply a Content Security Policy.** The viewer needs:
   - `img-src blob: data:` (images are shown from `blob:` URLs; spreadsheet pattern fills use `data:` SVG images);
   - no `'unsafe-inline'` in `style-src` in browsers with constructable stylesheets (tested in Edge, Chrome and Firefox; Safari is untested): the viewer adopts its stylesheet with `adoptedStyleSheets`, and the styles it sets on elements through the DOM are not restricted by CSP. In browsers without constructable stylesheets the viewer adds a `<style>` element instead, which such a policy blocks unless you pass its nonce as `styleNonce` (and allow that nonce in `style-src`) or allow `'unsafe-inline'`. The viewer cannot reliably detect that this fallback was blocked: the preview then appears unstyled;
-  - `connect-src` for the origins you load documents from with string URLs (not needed for `File`, `Blob`, or byte-array sources).
+  - `connect-src` for the origins you load documents from with string URLs (not needed for `File`, `Blob`, or byte-array sources);
+  - in worker mode, `worker-src` (or `script-src`) allowing the origin that serves the package's `worker.js`, for example `worker-src 'self'`. No `blob:` or `data:` sources are needed in `script-src` or `worker-src`.
 
   A starting point for the page that hosts the viewer, to adapt to your application:
 
@@ -51,7 +52,14 @@ Because of these gaps, previewing untrusted uploads can still make the browser t
 
   Not allowing remote origins in `img-src` and `font-src` also prevents a document from making the browser contact a remote server through CSS, should such a bug exist.
 
-- **Trusted Types:** the viewer uses no markup sink (no `innerHTML`, no `DOMParser`): it builds its own elements with DOM methods and parses SVG with its own XML parser. It works under `require-trusted-types-for 'script'` without any Trusted Types policy (tested in Edge, Chrome and Firefox with `trusted-types 'none'`; Safari is untested).
+- **Trusted Types:** the viewer uses no markup sink (no `innerHTML`, no `DOMParser`): it builds its own elements with DOM methods and parses SVG with its own XML parser. It works under `require-trusted-types-for 'script'` without any Trusted Types policy (tested in Edge, Chrome and Firefox with `trusted-types 'none'`; Safari is untested). In worker mode, `new Worker(url)` in your `create` function is a Trusted Types sink: create the URL through a policy of your own that accepts only the worker script's URL, and allow that policy name in `trusted-types`. For example, with `trusted-types ufp-worker`:
+
+  ```ts
+  const policy = trustedTypes.createPolicy("ufp-worker", {
+    createScriptURL: url => { if (url === workerUrl) return url; throw new TypeError("Unexpected worker URL"); },
+  });
+  const create = () => new Worker(policy.createScriptURL(workerUrl), { type: "module" });
+  ```
 
 ## Application responsibilities
 

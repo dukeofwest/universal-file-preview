@@ -36,7 +36,7 @@ Image and embedded-image renderers create object URLs and revoke them on replace
 
 File bytes are treated as untrusted. Source size, ZIP entry size/count, package paths, XML size/element/depth, and selected calculation ranges are bounded in code. ZIP64, encryption, multi-disk ZIP, unsupported compression, encrypted OpenDocument packages, XML DTDs, and external entities are rejected. External OOXML relationships are not followed for embedded content. OOXML packages are read through `package/ooxml-package.ts`, which enforces a total decompression budget and reads and parses each part at most once. Every image blob URL is created in `renderers/image-url.ts`, which checks the type against the content's signature and sanitizes all SVG, including SVG embedded in Office files. See [Security](./security.md).
 
-Parsing is synchronous once bytes have loaded, so large files can block the main thread. The code does not execute document scripts or formula expressions with `eval`; the XLSX evaluator supports only a limited built-in function/operator set, and OpenDocument formulas are not evaluated at all.
+Parsing is synchronous once bytes have loaded, so large files can block the main thread, unless worker mode is enabled: the viewer then sends the bytes to a parser worker (`src/worker/`), checks the returned model, and renders it with the same renderer on the main thread. The code does not execute document scripts or formula expressions with `eval`; the XLSX evaluator supports only a limited built-in function/operator set, and OpenDocument formulas are not evaluated at all.
 
 ## Dependencies and platform APIs
 

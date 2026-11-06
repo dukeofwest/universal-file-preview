@@ -22,6 +22,36 @@ Creates a viewer and appends its DOM to `options.container`. The viewer styleshe
 | `maxFileSize` | `number` | `128 * 1024 * 1024` | Maximum input size in bytes; must be a positive safe integer. |
 | `registry` | `RendererRegistry` | default registry | Renderer registry to use. |
 | `styleNonce` | `string` | none | Nonce for the fallback `<style>` element, used only in browsers without constructable stylesheets, so a Content Security Policy without `'unsafe-inline'` can allow it. Must be a non-empty string. |
+| `worker` | `PreviewWorkerOptions` | none | Parse DOCX, XLSX, PPTX, ODS, OTS, and FODS files in a Web Worker (see [Worker mode](#worker-mode)). Without it, parsing runs on the main thread. |
+
+### Worker mode
+
+```ts
+interface PreviewWorkerOptions {
+  readonly create: () => Worker;
+  readonly startupTimeout?: number; // default 10,000 ms; 1,000 to 60,000
+  readonly timeout?: number;        // default 30,000 ms; 1,000 to 300,000
+  readonly fallback?: "error" | "main-thread"; // default "error"
+}
+```
+
+With `worker` set, the viewer parses the built-in document formats in a worker that the application creates: `create` must return a module worker running the package's `./worker` entry point (`dist/worker.js`), served from your origin together with the modules it imports. The library never creates workers itself and uses no `blob:` or `data:` scripts. Images, SVG, and formats handled by renderers you register are rendered as before, on the main thread.
+
+- Each viewer has at most one worker, created when a file first needs it and reused for later files. A new `load()`, an aborted `signal`, or `destroy()` ends a running parse by terminating the worker; the next file starts a new one.
+- `startupTimeout` limits the time from `create()` until the worker is ready. `timeout` limits the time from sending a file to the worker until its result arrives; when it expires, the worker is terminated and the load fails with `resource-limit`. Receiving, checking, and rendering the result happen afterwards on the main thread and are not covered by a timeout.
+- `fallback` decides what happens when the worker cannot be created or does not become ready (for example, a Content Security Policy blocks it): `"error"` fails the load with a `PreviewError`; `"main-thread"` parses on the main thread instead, without a timeout. It never applies to cancelled loads or to failures after the worker was ready.
+- Every result from the worker is checked before rendering: the message format, the document model's structure, and the same output limits as in main-thread mode, so both modes accept the same files.
+- A worker runs in the same browser process as the page: worker mode keeps the page responsive and makes parsing interruptible, but it does not reduce peak memory use.
+
+```ts
+const viewer = new FilePreviewer({
+  container,
+  file,
+  worker: { create: () => new Worker(workerUrl, { type: "module" }) },
+});
+```
+
+`workerUrl` is the URL at which your application serves `dist/worker.js` of this package.
 
 ### `PreviewFile`
 
@@ -40,7 +70,7 @@ String sources are fetched with browser `fetch`. Binary sources are read in memo
 | Method | Return | Behavior |
 |---|---|---|
 | `open()` | `Promise<void>` | Loads the constructor's initial file. |
-| `load(file: PreviewFile)` | `Promise<void>` | Aborts/replaces the previous load and renders the new file. Errors reject with `PreviewError` for viewer and parser failures. |
+| `load(file: PreviewFile, options?: PreviewLoadOptions)` | `Promise<void>` | Aborts/replaces the previous load and renders the new file. Errors reject with `PreviewError` for viewer and parser failures. `options.signal` (an `AbortSignal`) cancels this load; a cancelled load resolves without showing an error. |
 | `setZoom(value: number)` | `void` | Sets zoom; non-finite values throw `RangeError`. The viewer clamps the value to 0.1–4, and individual renderers may apply narrower limits. |
 | `fitToWidth()` | `void` | Asks the current renderer to fit the preview to the available width. |
 | `fitToPage()` | `void` | Currently aliases `fitToWidth()`. |

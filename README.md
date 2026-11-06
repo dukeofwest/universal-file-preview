@@ -197,7 +197,7 @@ The public API is framework-agnostic. The repository includes tested Angular, Re
 
 ## Security and privacy
 
-Local file sources are read in the browser and are not uploaded by this library. URL sources are fetched by the browser and remain subject to CORS and your application’s network policies. SVG, including SVG embedded in Office files, is restricted to an allowlist; external OOXML relationships are not followed. Inputs, decompression, calculation, and images have size and work limits, but document parsing runs synchronously on the main thread, so a large or crafted file can still make the page unresponsive for several seconds. Read [Security](./docs/security.md), including its deployment guidance, before previewing untrusted files.
+Local file sources are read in the browser and are not uploaded by this library. URL sources are fetched by the browser and remain subject to CORS and your application’s network policies. SVG, including SVG embedded in Office files, is restricted to an allowlist; external OOXML relationships are not followed. Inputs, decompression, calculation, images, and the parsed document have size and work limits. By default, document parsing runs on the main thread, so a large or crafted file can make the page unresponsive for several seconds; the optional worker mode parses documents in a Web Worker with a timeout instead. Read [Security](./docs/security.md), including its deployment guidance, before previewing untrusted files.
 
 ## Limitations
 

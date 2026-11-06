@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Worker mode:** the new `worker` option parses DOCX, XLSX, PPTX, ODS, OTS, and FODS files in a Web Worker that the application creates from the new `./worker` entry point (`dist/worker.js`). The page stays responsive while a document is parsed; a parse that exceeds the timeout (30 seconds by default) is stopped and fails with `resource-limit`; replacing or destroying the viewer stops a running parse. `fallback: "main-thread"` parses on the main thread when the worker cannot be started. Results from the worker are checked before rendering. Without the option, parsing runs on the main thread as before.
+- `load()` accepts an optional second argument with an `AbortSignal` (`load(file, { signal })`); a cancelled load shows "Preview loading was cancelled." instead of staying at "Loading preview...".
 - **Security:** the parsed document model of every format (DOCX, PPTX, XLSX, ODS, OTS, FODS) is now limited while it is built: at most 6,000,000 objects and arrays, 67,108,864 UTF-16 code units of text, 256 MiB of image data, and a nesting depth of 64. A document that exceeds a limit is refused with a `resource-limit` error instead of being shown.
 - **Compatibility:** these limits can refuse some files that 0.2.x accepted:
   - Spreadsheets (XLSX and OpenDocument) may have at most 500,000 cells (previously 1,000,000). A workbook with more cells is refused with a `resource-limit` error.
