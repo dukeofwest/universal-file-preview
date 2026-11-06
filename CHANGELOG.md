@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Security:** the parsed document model of every format (DOCX, PPTX, XLSX, ODS, OTS, FODS) is now limited while it is built: at most 6,000,000 objects and arrays, 67,108,864 UTF-16 code units of text, 256 MiB of image data, and a nesting depth of 64. A document that exceeds a limit is refused with a `resource-limit` error instead of being shown.
+- **Compatibility:** these limits can refuse some files that 0.2.x accepted:
+  - Spreadsheets (XLSX and OpenDocument) may have at most 500,000 cells (previously 1,000,000). A workbook with more cells is refused with a `resource-limit` error.
+  - XLSX text is counted more strictly: a cell's formatted display text now counts in addition to its value, as do the texts of hyperlinks, comments and other sheet content. A workbook in which long texts are repeated in many cells can therefore be refused although 0.2.2 accepted it (for example, a 32,767-character shared string may now be used by at most 1,023 cells, where 0.2.2 allowed 2,048).
+
 ## 0.2.2 - 2026-11-06
 
 This patch release fixes a resource-exhaustion issue in XLSX previews that 0.2.1 did not cover. Upgrading is recommended for applications that preview files from untrusted sources. There are no API changes.

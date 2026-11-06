@@ -197,7 +197,8 @@ test("a 100,000-row by 10-column spreadsheet parses within the specification's b
   const rowXml = `<table:table-row>${cells}</table:table-row>`;
   const bytes = makeOds({ body: `<table:table table:name="Big"><table:table-column table:number-columns-repeated="10"/>${rowXml.repeat(100_000)}</table:table>` });
   const before = process.memoryUsage().heapUsed, started = performance.now();
-  const workbook = parseOds(bytes, "big.ods");
+  // One million cells is above the default limit (500,000 since 0.3.0); callers can raise it through limits.maxCells.
+  const workbook = parseOds(bytes, "big.ods", { limits: { maxCells: 1_000_000 } });
   const elapsed = performance.now() - started, growth = process.memoryUsage().heapUsed - before;
   assert.equal(workbook.sheets[0].cells.length, 1_000_000);
   assert.equal(workbook.sheets[0].maxRow, 100_000);

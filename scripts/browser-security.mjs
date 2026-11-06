@@ -101,9 +101,10 @@ const viewFiles = {
   "tooltip.xlsx": workbook(`<sheetViews><sheetView workbookViewId="0"><pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><sheetData>${bigRows}</sheetData><dataValidations count="1"><dataValidation type="none" allowBlank="1" showInputMessage="1" promptTitle="Input" prompt="An input message long enough to need several lines of text in the box." sqref="A1:AN200"/></dataValidations>`),
   "scroll.xlsx": workbook(`<sheetData>${Array.from({ length: 400 }, (_, index) => `<row r="${index + 1}"><c r="A${index + 1}"><v>${index + 1}</v></c></row>`).join("")}</sheetData>`),
   // XLSX text limits: the 0.2.1 attack (100,000 cells sharing one 1,000,000-character string) must be refused; the
-  // largest accepted case (2,048 cells sharing one 32,767-character string, at the workbook text budget) must render.
+  // largest accepted case (1,023 cells sharing one 32,767-character string, at the model text budget: each cell
+  // carries the string as its value and its display text) must render.
   "shared-attack.xlsx": sharedStringBook(100_000, 1_000_000), // refused (refusedFiles)
-  "shared-at-budget.xlsx": sharedStringBook(2048, 32_767),
+  "shared-at-budget.xlsx": sharedStringBook(1023, 32_767),
   // Renderer work limits: thousands of overlapping full-size merges and whole-sheet column ranges.
   "limits.xlsx": workbook(`<cols>${'<col min="1" max="16384" width="9"/>'.repeat(20_000)}</cols><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>limits</t></is></c></row></sheetData><mergeCells count="5000">${'<mergeCell ref="A1:SF5001"/>'.repeat(5000)}</mergeCells>`),
   // A sheet image whose blob URL must be released when the grid re-renders.

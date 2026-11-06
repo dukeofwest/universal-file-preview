@@ -5,8 +5,9 @@ import { evaluateFormula } from "../dist/parsers/xlsx-formula.js";
 import { formatValue } from "../dist/parsers/xlsx-number-format.js";
 import { makeZip } from "./helpers/zip.mjs";
 
-// Text limits for XLSX (0.2.2): one cell may hold at most 32,767 characters (Excel's limit), and the text of all
-// cells together, counted for every cell that uses it, at most 64 Mi UTF-16 code units. Shared strings and shared
+// Text limits for XLSX (0.2.2, shared model budget since 0.3.0): one cell may hold at most 32,767 characters (Excel's
+// limit), and the text of the whole model, counted for every occurrence (a cell's value and its display text each
+// count), at most 64 Mi UTF-16 code units. Shared strings and shared
 // number formats let a small file expand into far more text than it contains; 0.2.1 rendered 142 million characters
 // from a 195 KiB file.
 
@@ -42,12 +43,14 @@ test("one cell may hold exactly 32,767 characters, from a shared string, an inli
 });
 
 test("the workbook budget counts a shared string again for every cell that uses it", () => {
-  // Each reference is within the per-cell limit; only the aggregate exceeds the budget (64 Mi / 32,767 = 2,048.06).
+  // Each reference is within the per-cell limit; only the aggregate exceeds the budget. Every cell carries the string
+  // twice (value and display text, both copied when the model is cloned) plus its reference and type:
+  // 64 Mi / (2 x 32,767 + 5) = 1,023.9.
   const text = "b".repeat(32_767);
-  for (const [cells, accepted] of [[1, true], [1000, true], [2048, true], [2049, false], [5000, false]]) {
+  for (const [cells, accepted] of [[1, true], [1000, true], [1023, true], [1024, false], [5000, false]]) {
     const bytes = workbook(repeat(cells, sharedCell(0)), { shared: [text] }), started = performance.now();
     if (accepted) assert.equal(parse(bytes).sheets[0].cells.length, cells, `${cells} references`);
-    else assert.throws(() => parse(bytes), failsWith("resource-limit", /workbook text exceeds 67,108,864/), `${cells} references`);
+    else assert.throws(() => parse(bytes), failsWith("resource-limit", /exceeds the text limit [(]67,108,864[)]/), `${cells} references`);
     assert.ok(performance.now() - started < 3000, `${cells} references decided quickly`);
   }
 });
@@ -68,7 +71,7 @@ test("number formats cannot multiply text: repeated @ placeholders and long lite
   // A 30,000-character literal applied to many numeric cells: each display is within the cell limit, the total is not.
   const literal = `<styleSheet ${S}><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;${"q".repeat(30_000)}&quot;0"/></numFmts><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="164" applyNumberFormat="1"/></cellXfs></styleSheet>`;
   const started = performance.now();
-  assert.throws(() => parse(workbook(repeat(5000, ref => `<c r="${ref}" s="1"><v>1</v></c>`), { styles: literal })), failsWith("resource-limit", /workbook text exceeds/));
+  assert.throws(() => parse(workbook(repeat(5000, ref => `<c r="${ref}" s="1"><v>1</v></c>`), { styles: literal })), failsWith("resource-limit", /exceeds the text limit/));
   assert.ok(performance.now() - started < 3000);
 });
 
@@ -91,7 +94,7 @@ test("formula text results longer than 32,767 characters are #VALUE!, checked be
 test("uncached formula results and conditional-format display texts count against the workbook budget", () => {
   // 3,000 uncached formulas each producing 30,000 characters: 90 M code units in total.
   const cells = [ref => `<c r="${ref}" t="s"><v>0</v></c>`, ...repeat(2999, ref => `<c r="${ref}" t="str"><f>REPT(${col(0)}1,1)</f></c>`)];
-  assert.throws(() => parse(workbook(cells, { shared: ["v".repeat(30_000)] })), failsWith("resource-limit", /workbook text exceeds/));
+  assert.throws(() => parse(workbook(cells, { shared: ["v".repeat(30_000)] })), failsWith("resource-limit", /exceeds the text limit/));
   // Conditional formats whose number format is a long literal, over 3,000 numeric cells (90 M code units).
   const styles = `<styleSheet ${S}><dxfs count="1"><dxf><numFmt numFmtId="165" formatCode="&quot;${"k".repeat(30_000)}&quot;0"/></dxf></dxfs></styleSheet>`;
   const sheet = repeat(3000, ref => `<c r="${ref}"><v>1</v></c>`);
@@ -103,7 +106,7 @@ test("uncached formula results and conditional-format display texts count agains
     "xl/worksheets/sheet1.xml": `<worksheet ${S}><sheetData>${Array.from({ length: 30 }, (_, r) => `<row r="${r + 1}">${Array.from({ length: 100 }, (_, c) => `<c r="${col(c)}${r + 1}"><v>1</v></c>`).join("")}</row>`).join("")}</sheetData><conditionalFormatting sqref="${col(0)}1:${col(99)}30"><cfRule type="cellIs" dxfId="0" priority="1" operator="greaterThan"><formula>0</formula></cfRule></conditionalFormatting></worksheet>`,
   }, { deflate: true }));
   assert.ok(bytes.length > 0);
-  assert.throws(() => parse(withRule), failsWith("resource-limit", /workbook text exceeds/));
+  assert.throws(() => parse(withRule), failsWith("resource-limit", /exceeds the text limit/));
 });
 
 test("legitimate workbooks with many short texts and formatted numbers stay well within the budget", () => {

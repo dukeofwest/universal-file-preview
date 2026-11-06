@@ -1,4 +1,5 @@
 import { PreviewError } from "../errors.js";
+import { checkModel, ModelBudget } from "../model-budget.js";
 import { OoxmlPackage } from "../package/ooxml-package.js";
 import { parseXml, elements, firstElement, textContent, type XmlNode } from "../xml/xml-parser.js";
 import type { Paragraph, Presentation, PptxElement, PptxFill, PptxImageElement, PptxLine, PptxShapeElement, PptxTableElement, PptxTextElement, PptxShadow, Table, TableBorder, TableCell, TableCellMargins, TextRun, WordBlock, WordDocument, WordDrawing, WordDrawingPath, WordPageLayout } from "../model.js";
@@ -18,7 +19,7 @@ export function parseDocx(bytes: Uint8Array, name: string): WordDocument {
   const images = readWordImages(zip, relationships);
   const styleContext = readWordStyles(zip);
   const numbering = readWordNumbering(zip, styleContext.themeFonts);
-  const context: WordParseContext = { relationships, images, styleContext, themeColors: readThemeColors(zip), tableStyles: styleContext.tableStyles, numbering, numberCounters: new Map() };
+  const context: WordParseContext = { relationships, images, styleContext, themeColors: readThemeColors(zip), tableStyles: styleContext.tableStyles, numbering, numberCounters: new Map(), budget: new ModelBudget() };
   const blocks = parseWordBlocks(body, context);
   const page = parsePageLayout(body);
   const sections = descendants(body, "sectPr"), section = sections.at(-1);
@@ -35,7 +36,7 @@ export function parseDocx(bytes: Uint8Array, name: string): WordDocument {
   const footers = readHeaderFooter(zip, defaultFooterIds, relationships, context);
   const firstPageHeaders = differentFirstPageHeaderFooter ? readHeaderFooter(zip, referenceIds(headerReferences, "first"), relationships, context) : [];
   const firstPageFooters = differentFirstPageHeaderFooter ? readHeaderFooter(zip, referenceIds(footerReferences, "first"), relationships, context) : [];
-  return {
+  const model: WordDocument = {
     kind: "word", blocks, title: name,
     defaultRun: { ...styleContext.defaults.run, ...styleContext.defaultStyle.run },
     defaultParagraph: { ...styleContext.defaults.paragraph, ...styleContext.defaultStyle.paragraph },
@@ -43,6 +44,11 @@ export function parseDocx(bytes: Uint8Array, name: string): WordDocument {
     ...(headers.length ? { headers } : {}), ...(footers.length ? { footers } : {}),
     ...(differentFirstPageHeaderFooter ? { differentFirstPageHeaderFooter: true, ...(firstPageHeaders.length ? { firstPageHeaders } : {}), ...(firstPageFooters.length ? { firstPageFooters } : {}) } : {}),
   };
+  // Document-level parts; blocks were charged as they were read.
+  context.budget.add(model);
+  // Backstop: the budget above should already have stopped any oversized model.
+  checkModel(model, context.budget.limits, context.budget.usage);
+  return model;
 }
 
 type WordStyle = { paragraph: Partial<Paragraph>; run: Partial<TextRun>; basedOn?: string };
@@ -59,6 +65,8 @@ type WordParseContext = {
   tableRun?: Partial<TextRun>;
   numbering: Map<string, Map<number, WordNumberingLevel>>;
   numberCounters: Map<string, number[]>;
+  /** Output accounting for the whole document (model-budget.ts), shared by headers, footers and nested tables. */
+  budget: ModelBudget;
 };
 
 function parseWordBlocks(node: XmlNode, context: WordParseContext): WordBlock[] {
@@ -66,9 +74,13 @@ function parseWordBlocks(node: XmlNode, context: WordParseContext): WordBlock[] 
   const visit = (part: XmlNode) => {
     for (const item of part.children) {
       if (typeof item === "string") continue;
-      if (item.localName === "p") blocks.push({ type: "paragraph", value: parseWordParagraph(item, context) });
-      else if (item.localName === "tbl") blocks.push({ type: "table", value: parseWordTable(item, context) });
-      else visit(item); // content controls, custom XML, insertions, and similar wrappers
+      let block: WordBlock;
+      if (item.localName === "p") block = { type: "paragraph", value: parseWordParagraph(item, context) };
+      else if (item.localName === "tbl") block = { type: "table", value: parseWordTable(item, context) };
+      else { visit(item); continue; }
+      // Charged as soon as it is read (a nested table's blocks were charged already and are not counted again).
+      context.budget.add(block);
+      blocks.push(block); // content controls, custom XML, insertions, and similar wrappers
     }
   };
   visit(node);
@@ -716,6 +728,7 @@ export function parsePptx(bytes: Uint8Array, name: string): Presentation {
     masters.set(key, master);
     return master;
   };
+  const budget = new ModelBudget();
   const slideSize = child(presentation, "sldSz");
   const slideWidth = Math.max(1, Number(attribute(slideSize, "cx") ?? "9144000"));
   const slideHeight = Math.max(1, Number(attribute(slideSize, "cy") ?? "5143500"));
@@ -914,10 +927,17 @@ export function parsePptx(bytes: Uint8Array, name: string): Presentation {
       }
     }
     const title = paragraphs[0]?.runs.map(run => run.text).join("").trim() || `Slide ${slides.length + 1}`;
-    slides.push({ title, paragraphs, width: slideWidth, height: slideHeight, ...(background ? { background } : {}), elements });
+    const parsedSlide = { title, paragraphs, width: slideWidth, height: slideHeight, ...(background ? { background } : {}), elements };
+    // Charged once the slide is complete: one slide is bounded by its XML parts' element and expansion limits.
+    budget.add(parsedSlide);
+    slides.push(parsedSlide);
   }
   if (!slides.length) throw new PreviewError("PPTX presentation contains no readable slides.", "invalid-file");
-  return { kind: "presentation", slides, title: name };
+  const model: Presentation = { kind: "presentation", slides, title: name };
+  budget.add(model);
+  // Backstop: the budget above should already have stopped any oversized model.
+  checkModel(model, budget.limits, budget.usage);
+  return model;
 }
 
 function pptUprightText(box: PptTransform): PptTransform {

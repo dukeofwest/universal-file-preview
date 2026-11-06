@@ -1,5 +1,6 @@
 import { DiagnosticCollector } from "../../diagnostics.js";
 import { PreviewError } from "../../errors.js";
+import { checkModel, MODEL_LIMITS, ModelBudget } from "../../model-budget.js";
 import type { SpreadsheetRange } from "../../model.js";
 import type { DocumentSourceFormat, ExtendedSpreadsheetCell, ExtendedSpreadsheetColumn, ExtendedWorkbook, ExtendedWorksheet, SpreadsheetCellData, SpreadsheetCellValue, SpreadsheetDefinedName, SpreadsheetDisplay, SpreadsheetFormula, SpreadsheetRowRange } from "../../model-extensions.js";
 import { inspectOdfPackage } from "../../package/odf-package.js";
@@ -31,7 +32,7 @@ export type OdsLimits = {
   maxStylesBytes: number;
   /** All decompressed parts together. Default 256 MiB. */
   maxTotalBytes: number;
-  /** Materialised cells across the workbook (content cells and clipped styled empty cells). Default 1,000,000. */
+  /** Materialised cells across the workbook (content cells and clipped styled empty cells). Default 500,000 (1,000,000 before 0.3.0). */
   maxCells: number;
   /** Default 1,024. */
   maxSheets: number;
@@ -42,7 +43,7 @@ export type OdsLimits = {
 };
 export type OdsParseOptions = { readonly signal?: AbortSignal; readonly limits?: Partial<OdsLimits> };
 
-const DEFAULT_LIMITS: OdsLimits = { maxContentBytes: 128 * 1024 * 1024, maxStylesBytes: 16 * 1024 * 1024, maxTotalBytes: 256 * 1024 * 1024, maxCells: 1_000_000, maxSheets: 1024, maxCellTextLength: 32_767, maxCaptureElements: 10_000 };
+const DEFAULT_LIMITS: OdsLimits = { maxContentBytes: 128 * 1024 * 1024, maxStylesBytes: 16 * 1024 * 1024, maxTotalBytes: 256 * 1024 * 1024, maxCells: MODEL_LIMITS.cells, maxSheets: 1024, maxCellTextLength: 32_767, maxCaptureElements: 10_000 };
 const ODS_MEDIA_TYPES: Readonly<Record<string, "ods" | "ots">> = { "application/vnd.oasis.opendocument.spreadsheet": "ods", "application/vnd.oasis.opendocument.spreadsheet-template": "ots" };
 const CHART_MEDIA_TYPE = "application/vnd.oasis.opendocument.chart";
 const MAX_ROW = 1_048_576, MAX_COLUMN = 16_384;
@@ -109,9 +110,11 @@ export function streamSpreadsheet(input: SpreadsheetSource, name: string, limits
 
   const settings = input.mode === "flat" ? content.settings : input.settings?.();
   const activeSheet = settings ? applyViewHints(sheets, readViewHints(settings, collector), collector) : undefined;
+  // View hints add a frozen-pane object to sheets that were charged already.
+  for (const sheet of sheets) if (sheet.frozen) content.budget.add(sheet.frozen);
   const resolver = content.resolver();
   const locale = resolver.locale;
-  return {
+  const model: ExtendedWorkbook = {
     kind: "workbook", title: name, sheets,
     ...(activeSheet !== undefined ? { activeSheet } : {}),
     styles: resolver.styles, defaultFont: resolver.defaultFont,
@@ -120,6 +123,11 @@ export function streamSpreadsheet(input: SpreadsheetSource, name: string, limits
     ...(content.names.length ? { names: content.names } : {}),
     diagnostics: collector.list(),
   };
+  // Workbook-level parts (styles, names, diagnostics); sheets were charged as they were finished.
+  content.budget.add(model);
+  // Backstop: the budget above should already have stopped any oversized model.
+  checkModel(model, content.budget.limits, content.budget.usage);
+  return model;
 }
 
 /**
@@ -180,6 +188,8 @@ class ContentReader {
   formulaCells = 0;
   missingResults = 0;
   cellCount = 0;
+  /** Output accounting for the whole workbook (model-budget.ts); cells are counted against limits.maxCells below. */
+  readonly budget: ModelBudget;
   /** Flat documents: meta:generator and office:settings from the same stream. */
   generator: string | undefined;
   settings: NsXmlNode | undefined;
@@ -193,6 +203,7 @@ class ContentReader {
 
   constructor(private readonly stylesRoot: NsXmlNode | undefined, private readonly collector: DiagnosticCollector, private readonly limits: OdsLimits, readonly chartObjects: ReadonlySet<string>, private readonly mode: "content" | "flat") {
     this.#commonStyles = stylesRoot;
+    this.budget = new ModelBudget({ ...MODEL_LIMITS, cells: limits.maxCells });
     if (stylesRoot) {
       this.#fontFaces.push(...nsChildren(stylesRoot, ODF.office, "font-face-decls"));
       this.#collectConditionalStyles(nsFirst(stylesRoot, ODF.office, "styles"));
@@ -239,7 +250,7 @@ class ContentReader {
   end(name: ExpandedName): void {
     if (this.#stack.length && this.#stack[this.#stack.length - 1] === name) this.#stack.pop();
     if (this.#sheet) {
-      if (is(name, ODF.table, "table")) { this.sheets.push(this.#sheet.finish()); this.#sheet = undefined; }
+      if (is(name, ODF.table, "table")) { const sheet = this.#sheet.finish(); this.budget.container(sheet, ["cells"]); this.sheets.push(sheet); this.#sheet = undefined; }
       else this.#sheet.end(name);
     }
   }
@@ -423,7 +434,7 @@ class SheetBuilder {
     const comment = annotationText(node);
     if (!content) {
       const style = this.styles.cellStyleIndex(ownStyle);
-      if (comment !== undefined) for (let r = row.start; r <= lastRow; r++) for (let c = firstColumn; c <= lastColumn; c++) this.#comments[`${columnName(c)}${r}`] = comment;
+      if (comment !== undefined) for (let r = row.start; r <= lastRow; r++) for (let c = firstColumn; c <= lastColumn; c++) this.#comments[this.content.budget.text(`${columnName(c)}${r}`)] = comment;
       if (ownStyle !== undefined && style !== 0 && style !== this.styles.cellStyleIndex(inheritedStyle(firstColumn))) {
         this.#styledRuns.push({ top: row.start, left: firstColumn, rows: lastRow - row.start + 1, columns: lastColumn - firstColumn + 1, style });
       }
@@ -456,9 +467,13 @@ class SheetBuilder {
       for (let c = firstColumn; c <= lastColumn; c++) {
         const ref = `${columnName(c)}${r}`, style = this.styles.cellStyleIndex(ownStyle ?? inheritedStyle(c));
         const entry = shown(style);
-        this.#cells.push(legacyCell(ref, entry.data, style, runs, entry.color));
-        if (link) this.#hyperlinks[ref] = link;
-        if (comment !== undefined) this.#comments[ref] = comment;
+        const cell = legacyCell(ref, entry.data, style, runs, entry.color);
+        // Copies share their data and runs objects (counted once); their strings count per copy. Hyperlink and
+        // comment texts are counted with the finished sheet, their cell-reference keys here.
+        this.content.budget.record(cell);
+        this.#cells.push(cell);
+        if (link) this.#hyperlinks[this.content.budget.text(ref)] = link;
+        if (comment !== undefined) this.#comments[this.content.budget.text(ref)] = comment;
         if (!covered && (columnSpan > 1 || rowSpan > 1)) {
           const merge = { top: r, left: c, bottom: Math.min(r + rowSpan - 1, MAX_ROW), right: Math.min(c + columnSpan - 1, MAX_COLUMN) };
           this.#merges.push(merge);
@@ -503,7 +518,7 @@ class SheetBuilder {
       const copies = (bottom - run.top + 1) * (right - run.left + 1);
       this.content.cellCount += copies;
       if (this.content.cellCount > this.limits.maxCells) throw new PreviewError("The spreadsheet exceeds the configured cell limit.", "resource-limit");
-      for (let r = run.top; r <= bottom; r++) for (let c = run.left; c <= right; c++) this.#cells.push({ ref: `${columnName(c)}${r}`, value: "", style: run.style });
+      for (let r = run.top; r <= bottom; r++) for (let c = run.left; c <= right; c++) { const cell = { ref: `${columnName(c)}${r}`, value: "", style: run.style }; this.content.budget.record(cell); this.#cells.push(cell); }
     }
     this.#reportHidden();
     const sheet: ExtendedWorksheet = { name: this.name, cells: this.#cells, maxRow: this.#maxRow, maxColumn: this.#maxColumn, defaultColumnWidthPoints: DEFAULT_COLUMN_WIDTH_POINTS, defaultRowHeight: DEFAULT_ROW_HEIGHT_POINTS };

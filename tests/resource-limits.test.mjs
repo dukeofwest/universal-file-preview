@@ -268,8 +268,8 @@ test("slicer work counts every filtered column checked per row", async () => {
   assert.ok(slicer && slicer.items.length > 0, "the slicer still shows the items read within the budget");
 });
 
-test("an XLSX workbook may hold at most 1,000,000 parsed cells across all its sheets", () => {
-  // Each sheet (120,000 cells) is far below the per-sheet XML element limit; nine of them exceed the workbook limit.
+test("an XLSX workbook may hold at most 500,000 parsed cells across all its sheets", () => {
+  // Each sheet (120,000 cells) is far below the per-sheet XML element limit; five of them exceed the workbook limit.
   const row = index => `<row r="${index + 1}">${Array.from({ length: 120 }, (_, column) => `<c r="${String.fromCharCode(65 + Math.floor(column / 26))}${String.fromCharCode(65 + column % 26)}${index + 1}"><v>1</v></c>`).join("")}</row>`;
   const sheetXml = `<worksheet ${S}><sheetData>${Array.from({ length: 1000 }, (_, index) => row(index)).join("")}</sheetData></worksheet>`;
   const book = count => {
@@ -281,7 +281,7 @@ test("an XLSX workbook may hold at most 1,000,000 parsed cells across all its sh
     return new Uint8Array(makeZip(entries, { deflate: true }));
   };
   assert.equal(parseXlsx(book(1), "x.xlsx").sheets[0].cells.length, 120_000);
-  assert.throws(() => parseXlsx(book(9), "x.xlsx"), failsWith("resource-limit", /more than 1,000,000 cells/));
+  assert.throws(() => parseXlsx(book(5), "x.xlsx"), failsWith("resource-limit", /more than 500,000 cells/));
 });
 
 const formulaSheet = (cells) => workbook('<sheet name="S" sheetId="1" r:id="rId1"/>', `<sheetData>${cells.map((cell, index) => `<row r="${index + 1}">${cell}</row>`).join("")}</sheetData>`);

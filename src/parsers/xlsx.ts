@@ -7,6 +7,7 @@ import { evaluateFormula, FormulaError, isTruthy, type FormulaContext, type Form
 import { builtinTableStyle, type TableStyleColor } from "./xlsx-table-styles.js";
 import { parseDrawingShapes } from "./ooxml.js";
 import { tiffToPng } from "./tiff.js";
+import { checkModel, ModelBudget } from "../model-budget.js";
 
 export type XlsxParseOptions = { locale?: string; today?: number };
 
@@ -20,23 +21,15 @@ const on = (node: XmlNode | undefined): boolean | undefined => node ? !/^(0|fals
 /** Cells covered by conditional formats, across the whole workbook (rules are applied in sheet order until it is spent). */
 const MAX_CF_CELLS = 1_000_000;
 const MAX_SHEETS = 1024;
-/** Parsed worksheet cells across the whole workbook, as for OpenDocument spreadsheets. */
-const MAX_WORKBOOK_CELLS = 1_000_000;
 /** Excel's limit for the text of one cell (OpenDocument cells have the same limit). */
 const MAX_CELL_TEXT = 32_767;
 /**
- * Text of all cells together, in UTF-16 code units, counted for every cell: a shared string counts again for each
- * cell that uses it, as do formatted display texts, formula text results and conditional-format display texts.
- * Shared strings and shared number formats let a small file expand into far more text than it contains. 64 Mi code
- * units allow about 70 characters for each of 1,000,000 cells (legitimate 960,000-cell workbooks with short texts
- * or formatted amounts used 17 M); at most 128 MiB of text, where 0.2.1 had no bound at all.
+ * Checks one cell text against the cell limit. The workbook's text, cell and object limits are charged in the
+ * shared ModelBudget (model-budget.ts) when the cell is complete, counting every occurrence (a shared string counts
+ * again for each cell that uses it, as do display texts, formula text results and conditional-format display texts).
  */
-const MAX_WORKBOOK_TEXT = 64 * 1024 * 1024;
-type TextBudget = { remaining: number };
-/** Counts the text of one cell; fails the workbook (no truncation) when a cell or the workbook exceeds its limit. */
-function chargeText(budget: TextBudget, text: string): void {
+function checkCellText(text: string): void {
   if (text.length > MAX_CELL_TEXT) throw new PreviewError(`XLSX cell text is longer than ${MAX_CELL_TEXT.toLocaleString("en-US")} characters.`, "resource-limit");
-  if ((budget.remaining -= text.length) < 0) throw new PreviewError(`XLSX workbook text exceeds ${MAX_WORKBOOK_TEXT.toLocaleString("en-US")} characters.`, "resource-limit");
 }
 /**
  * Work limits for one workbook. Formula evaluation (uncached formulas, conditional formats and
@@ -86,8 +79,7 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   const parsed: Parsed[] = [];
   // Each worksheet part is read once (a repeated target would multiply the work), and at most MAX_SHEETS sheets, as for OpenDocument.
   if (sheetNodes.length > MAX_SHEETS) throw new PreviewError(`XLSX workbook has more than ${MAX_SHEETS} sheets.`, "resource-limit");
-  const seenSheets = new Set<string>(), text: TextBudget = { remaining: MAX_WORKBOOK_TEXT };
-  let cellCount = 0;
+  const seenSheets = new Set<string>(), budget = new ModelBudget();
   sheetNodes.forEach((sheetNode, index) => {
     const sheetName = attr(sheetNode, "name") ?? `Sheet ${index + 1}`;
     const relId = Object.entries(sheetNode.attributes).find(([key]) => key.endsWith(":id"))?.[1];
@@ -97,9 +89,7 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
     const root = decodeXml(zip, rel.target);
     if (root.localName !== "worksheet") return;
     const state = attr(sheetNode, "state");
-    const { sheet, values, formulas } = readWorksheet(root, sheetName, shared, color, formatFor, locale, date1904, text);
-    // Each sheet is already bounded by the XML element limit; this bounds the workbook (one sheet past the limit at most is parsed).
-    if ((cellCount += sheet.cells.length) > MAX_WORKBOOK_CELLS) throw new PreviewError(`XLSX workbook has more than ${MAX_WORKBOOK_CELLS.toLocaleString("en-US")} cells.`, "resource-limit");
+    const { sheet, values, formulas } = readWorksheet(root, sheetName, shared, color, formatFor, locale, date1904, budget);
     if (state === "hidden" || state === "veryHidden") sheet.hidden = true;
     parsed.push({ sheet, values, formulas, root, path: rel.target, index });
   });
@@ -147,9 +137,10 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
       if (!cell || value === null || value instanceof FormulaError && value.code === "#NAME?") continue;
       const formatted = displayFor(value, formatFor(cell.style), locale, date1904);
       cell.value = value instanceof FormulaError ? value.code : typeof value === "boolean" ? (value ? "1" : "0") : String(value);
-      if (typeof value === "string") chargeText(text, cell.value);
+      if (typeof value === "string") checkCellText(cell.value);
       if (typeof value === "string") cell.type = "str"; else if (typeof value === "boolean") cell.type = "b"; else if (value instanceof FormulaError) cell.type = "e";
-      applyDisplay(cell, formatted, text);
+      applyDisplay(cell, formatted);
+      budget.record(cell);
     }
   }
   const tablesById = new Map<number, TableInfo>(), pendingSlicers: PendingSlicer[] = [], remaining: Remaining = { hyperlinkCells: MAX_HYPERLINK_CELLS, filterColumns: MAX_FILTER_COLUMNS, slicerWork: MAX_SLICER_WORK }, formattedCells = { remaining: MAX_CF_CELLS };
@@ -162,22 +153,36 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   const withinLimits = <T>(work: () => T, fallback: T): T => { try { return work(); } catch (error) { if (error instanceof WorkLimitReached) return fallback; throw error; } };
   for (const entry of parsed) {
     const rels = readRelationships(zip, entry.path);
-    readSheetExtras(zip, entry.root, entry.sheet, rels, styles, theme, themeRoot, tablesById, pendingSlicers, remaining);
-    const conditional = withinLimits(() => evaluateConditionalFormats(entry.root, entry.sheet, styles, theme, palette, (row, column) => cellValue(entry.sheet.name, row, column), (row, column) => ruleContext(entry.sheet.name, row, column), locale, date1904, formattedCells, text), {});
+    readSheetExtras(zip, entry.root, entry.sheet, rels, styles, theme, themeRoot, tablesById, pendingSlicers, remaining, budget);
+    const conditional = withinLimits(() => evaluateConditionalFormats(entry.root, entry.sheet, styles, theme, palette, (row, column) => cellValue(entry.sheet.name, row, column), (row, column) => ruleContext(entry.sheet.name, row, column), locale, date1904, formattedCells, budget), {});
     if (Object.keys(conditional).length) entry.sheet.conditional = conditional;
     const sparklines = withinLimits(() => readSparklines(entry.root, entry.sheet.name, cellValue, theme, palette), []);
     if (sparklines.length) entry.sheet.sparklines = sparklines;
+    chargeSheet(budget, entry.sheet);
   }
-  if (pendingSlicers.length) resolveSlicers(zip, workbook, relationships, pendingSlicers, tablesById, locale, remaining);
+  if (pendingSlicers.length) resolveSlicers(zip, workbook, relationships, pendingSlicers, tablesById, locale, remaining, budget);
 
   const view = child(child(workbook, "bookViews"), "workbookView");
   const activeTab = Number(attr(view, "activeTab") ?? 0);
   const activeSheet = Math.max(0, parsed.findIndex(entry => entry.index === activeTab));
-  return { kind: "workbook", sheets: parsed.map(entry => entry.sheet), title: name, styles: styles.cellStyles, defaultFont: styles.defaultFont, ...(activeSheet ? { activeSheet } : {}), ...(date1904 ? { date1904 } : {}) };
+  const model: Workbook = { kind: "workbook", sheets: parsed.map(entry => entry.sheet), title: name, styles: styles.cellStyles, defaultFont: styles.defaultFont, ...(activeSheet ? { activeSheet } : {}), ...(date1904 ? { date1904 } : {}) };
+  // Workbook-level parts (styles, slicer items added after their sheet was charged); parts already charged are skipped.
+  budget.add(model);
+  // Backstop: the budget above should already have stopped any oversized model.
+  checkModel(model, budget.limits, budget.usage);
+  return model;
 }
 
-function applyDisplay(cell: SpreadsheetCell, formatted: FormattedValue, text: TextBudget): void {
-  if (formatted.text !== cell.value) chargeText(text, formatted.text);
+/**
+ * Charges the finished sheet. Cells and conditional-format entries were charged as they were made and are not
+ * counted again; the other parts are each bounded by their XML part's element limit and their own feature limit.
+ */
+function chargeSheet(budget: ModelBudget, sheet: Worksheet): void {
+  budget.container(sheet, ["cells", "conditional"]);
+}
+
+function applyDisplay(cell: SpreadsheetCell, formatted: FormattedValue): void {
+  checkCellText(formatted.text);
   cell.display = formatted.text;
   if (formatted.color) cell.displayColor = formatted.color; else delete cell.displayColor;
   if (formatted.repeat) cell.repeat = formatted.repeat; else delete cell.repeat;
@@ -189,7 +194,7 @@ function displayFor(value: CellValue, format: string, locale: string, date1904: 
   return formatValue(value, format, { locale, date1904 });
 }
 
-function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string; runs?: SpreadsheetRun[] }>, color: (node: XmlNode | undefined, fallback?: string) => string | undefined, formatFor: (style: number | undefined) => string, locale: string, date1904: boolean, text: TextBudget) {
+function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string; runs?: SpreadsheetRun[] }>, color: (node: XmlNode | undefined, fallback?: string) => string | undefined, formatFor: (style: number | undefined) => string, locale: string, date1904: boolean, budget: ModelBudget) {
   const cells: SpreadsheetCell[] = [], values = new Map<number, CellValue>(), formulas = new Map<number, { formula: string; origin: { row: number; column: number } }>();
   const sharedFormulas = new Map<string, { formula: string; origin: { row: number; column: number } }>();
   const rows: Record<number, SpreadsheetRow> = {};
@@ -227,6 +232,7 @@ function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string
       }
       if (type) output.type = type;
       if (styleIndex !== undefined && Number.isFinite(styleIndex)) output.style = styleIndex;
+      // Rich-text runs from the shared-strings table are one array shared by every cell that uses the string (counted once).
       if (runs && runs.length) output.runs = runs;
       const key = position.row * 16_384 + position.column;
       if (valueNode || type === "inlineStr") {
@@ -236,10 +242,12 @@ function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string
         else if (type === "e") value = new FormulaError(output.value);
         else if (type === "d") { const date = new Date(output.value); value = Number.isNaN(date.valueOf()) ? output.value : dateToSerial(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date1904) + (date.getUTCHours() * 3600 + date.getUTCMinutes() * 60 + date.getUTCSeconds()) / 86400; }
         else { const number = Number(output.value); value = output.value.trim() !== "" && Number.isFinite(number) ? number : output.value; }
-        if (typeof value === "string") chargeText(text, value);
+        if (typeof value === "string") checkCellText(value);
         values.set(key, value);
-        if (!(value === "" && !formulaNode)) applyDisplay(output, displayFor(value, formatFor(styleIndex), locale, date1904), text);
+        if (!(value === "" && !formulaNode)) applyDisplay(output, displayFor(value, formatFor(styleIndex), locale, date1904));
       }
+      budget.cells();
+      budget.record(output);
       cells.push(output);
       maxRow = Math.max(maxRow, position.row); maxColumn = Math.max(maxColumn, position.column);
     }
@@ -279,7 +287,7 @@ function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string
   return { sheet, values, formulas };
 }
 
-function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rels: Map<string, Relationship>, styles: StyleSheet, theme: Theme, themeRoot: XmlNode | undefined, tablesById: Map<number, TableInfo>, pendingSlicers: PendingSlicer[], remaining: Remaining): void {
+function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rels: Map<string, Relationship>, styles: StyleSheet, theme: Theme, themeRoot: XmlNode | undefined, tablesById: Map<number, TableInfo>, pendingSlicers: PendingSlicer[], remaining: Remaining, budget: ModelBudget): void {
   const relFor = (node: XmlNode | undefined) => rels.get(Object.entries(node?.attributes ?? {}).find(([key]) => key.endsWith(":id"))?.[1] ?? "");
   // Hyperlinks: only web and mail targets become clickable.
   const hyperlinks: Record<string, string> = {};
@@ -288,7 +296,7 @@ function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rel
     if (!ref || !target || !/^(https?:|mailto:)/i.test(target)) continue;
     const range = parseRange(ref);
     // Ranges cover at most 1,001 x 101 cells each and MAX_HYPERLINK_CELLS across the workbook; further links are not expanded.
-    if (range) for (let row = range.top; row <= Math.min(range.bottom, range.top + 1000) && remaining.hyperlinkCells > 0; row++) for (let column = range.left; column <= Math.min(range.right, range.left + 100) && remaining.hyperlinkCells > 0; column++) { hyperlinks[`${columnName(column)}${row}`] = target; remaining.hyperlinkCells--; }
+    if (range) for (let row = range.top; row <= Math.min(range.bottom, range.top + 1000) && remaining.hyperlinkCells > 0; row++) for (let column = range.left; column <= Math.min(range.right, range.left + 100) && remaining.hyperlinkCells > 0; column++) { hyperlinks[budget.text(`${columnName(column)}${row}`)] = target; remaining.hyperlinkCells--; }
   }
   if (Object.keys(hyperlinks).length) sheet.hyperlinks = hyperlinks;
   // Notes: Excel marks commented cells with a red corner triangle.
@@ -297,7 +305,7 @@ function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rel
     if (rel.external || !rel.type.endsWith("/comments") || !zip.has(rel.target)) continue;
     for (const comment of elements(child(decodeXml(zip, rel.target), "commentList") ?? { name: "", localName: "", attributes: {}, children: [] }, "comment")) {
       const ref = attr(comment, "ref");
-      if (ref) comments[ref] = readRichText(child(comment, "text") ?? comment).text;
+      if (ref) comments[budget.text(ref)] = readRichText(child(comment, "text") ?? comment).text;
     }
   }
   if (Object.keys(comments).length) sheet.comments = comments;
@@ -360,7 +368,7 @@ function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rel
   // Drawings: pictures, shapes and groups anchored to cells.
   const drawingRel = relFor(child(root, "drawing"));
   if (drawingRel && !drawingRel.external && zip.has(drawingRel.target)) {
-    const drawings = readDrawings(zip, drawingRel.target, themeRoot);
+    const drawings = readDrawings(zip, drawingRel.target, themeRoot, budget);
     // Slicer frames name a slicer of this sheet; its part gives caption, layout, style and cache (items are resolved once all tables are read).
     const definitions = new Map<string, XmlNode>();
     for (const rel of rels.values()) if (!rel.external && rel.type.endsWith("/slicer") && zip.has(rel.target)) for (const node of elements(decodeXml(zip, rel.target), "slicer")) definitions.set(attr(node, "name") ?? "", node);
@@ -412,7 +420,7 @@ function builtinSlicerStyle(name: string, theme: Theme): SpreadsheetSlicerStyle 
 }
 
 /** Fills slicer buttons from their caches: table slicers read the table column (selection from its filter), pivot slicers the pivot cache items. */
-function resolveSlicers(zip: OoxmlPackage, workbook: XmlNode, relationships: Map<string, Relationship>, pending: PendingSlicer[], tables: Map<number, TableInfo>, locale: string, remaining: Remaining): void {
+function resolveSlicers(zip: OoxmlPackage, workbook: XmlNode, relationships: Map<string, Relationship>, pending: PendingSlicer[], tables: Map<number, TableInfo>, locale: string, remaining: Remaining, budget: ModelBudget): void {
   const caches = new Map<string, XmlNode>();
   for (const rel of relationships.values()) if (!rel.external && rel.type.endsWith("/slicerCache") && zip.has(rel.target)) { const node = decodeXml(zip, rel.target); caches.set(attr(node, "name") ?? "", node); }
   const pivotCaches = new Map<string, string>();
@@ -446,7 +454,8 @@ function resolveSlicers(zip: OoxmlPackage, workbook: XmlNode, relationships: Map
         // An item has data when its row survives the filters of the table's other columns.
         const visible = otherFilters.every(([index, filter]) => passes(filter, textAt(row, table.range.left + index)));
         const raw = cells.get(`${columnName(table.range.left + columnIndex)}${row}`), number = raw && raw.type !== "s" && raw.type !== "str" && raw.value.trim() !== "" ? Number(raw.value) : NaN;
-        const item = byText.get(key) ?? { text: text === "" ? "(blank)" : text, ...(Number.isFinite(number) ? { number } : {}), selected: passes(own, text), hasData: false };
+        let item = byText.get(key);
+        if (!item) { budget.objects(); item = { text: budget.text(text === "" ? "(blank)" : text), ...(Number.isFinite(number) ? { number } : {}), selected: passes(own, text), hasData: false }; }
         item.hasData ||= visible;
         byText.set(key, item);
       }
@@ -460,7 +469,8 @@ function resolveSlicers(zip: OoxmlPackage, workbook: XmlNode, relationships: Map
         const value = shared[Number(attr(entry, "x"))];
         if (!value) continue;
         const raw = value.localName === "m" ? "" : attr(value, "v") ?? "", number = value.localName === "n" ? Number(raw) : NaN;
-        items.push({ text: raw === "" ? "(blank)" : value.localName === "b" ? (raw === "1" ? "TRUE" : "FALSE") : raw, ...(Number.isFinite(number) ? { number } : {}), selected: flag(entry, "s"), hasData: !flag(entry, "nd") });
+        budget.objects();
+        items.push({ text: budget.text(raw === "" ? "(blank)" : value.localName === "b" ? (raw === "1" ? "TRUE" : "FALSE") : raw), ...(Number.isFinite(number) ? { number } : {}), selected: flag(entry, "s"), hasData: !flag(entry, "nd") });
       }
     } else continue;
     const order = attr(settings, "sortOrder") ?? "ascending", crossFilter = attr(settings, "crossFilter") ?? "showItemsWithDataAtTop";
@@ -477,7 +487,7 @@ function resolveSlicers(zip: OoxmlPackage, workbook: XmlNode, relationships: Map
 }
 
 /** Evaluates conditional formatting into per-cell overlays (Excel applies all matching rules; higher priority wins per property). */
-function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: StyleSheet, theme: Theme, palette: string[], value: (row: number, column: number) => CellValue, context: (row: number, column: number) => FormulaContext, locale: string, date1904: boolean, formattedCells: { remaining: number }, text: TextBudget): Record<string, SpreadsheetConditional> {
+function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: StyleSheet, theme: Theme, palette: string[], value: (row: number, column: number) => CellValue, context: (row: number, column: number) => FormulaContext, locale: string, date1904: boolean, formattedCells: { remaining: number }, budget: ModelBudget): Record<string, SpreadsheetConditional> {
   type Rule = { node: XmlNode; ranges: SpreadsheetRange[]; priority: number; dxf?: SpreadsheetStyle; ext?: XmlNode; formulas: string[] };
   const rules: Rule[] = [];
   const extById = new Map<string, XmlNode>(), extRules: Rule[] = [];
@@ -535,8 +545,10 @@ function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: Sty
     const apply = (row: number, column: number, update: (entry: SpreadsheetConditional) => void) => {
       const key = `${columnName(column)}${row}`;
       if (stopped.has(key)) return;
-      const entry = result[key] ??= {};
+      let entry = result[key];
+      if (!entry) { budget.text(key); entry = result[key] = {}; }
       update(entry);
+      budget.record(entry);
       if (flag(rule.node, "stopIfTrue")) stopped.add(key);
     };
     const applyDxf = (row: number, column: number) => apply(row, column, entry => {
@@ -544,7 +556,7 @@ function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: Sty
       entry.style = mergeUnder(entry.style, rule.dxf);
       if (rule.dxf.numberFormat && !entry.display) {
         const current = value(row, column);
-        if (typeof current === "number") { const display = formatValue(current, rule.dxf.numberFormat, { locale, date1904 }).text; chargeText(text, display); entry.display = display; }
+        if (typeof current === "number") { const display = formatValue(current, rule.dxf.numberFormat, { locale, date1904 }).text; checkCellText(display); entry.display = display; }
       }
     });
     if (type === "colorScale") {
@@ -984,16 +996,16 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 // ---------------------------------------------------------------------------------------------------------------------
 // Drawings
 
-function readDrawings(zip: OoxmlPackage, path: string, themeRoot: XmlNode | undefined): SpreadsheetDrawing[] {
+function readDrawings(zip: OoxmlPackage, path: string, themeRoot: XmlNode | undefined, budget: ModelBudget): SpreadsheetDrawing[] {
   const root = decodeXml(zip, path), rels = readRelationships(zip, path), drawings: SpreadsheetDrawing[] = [];
   const marker = (node: XmlNode | undefined) => node ? { column: Number(textContent(child(node, "col") ?? node)) || 0, row: Number(textContent(child(node, "row") ?? node)) || 0, columnOffset: Number(textContent(child(node, "colOff") ?? node)) || 0, rowOffset: Number(textContent(child(node, "rowOff") ?? node)) || 0 } : undefined;
   const image = (embed: string) => {
     const rel = rels.get(embed);
     if (!rel || rel.external || !zip.has(rel.target)) return undefined;
     // Browsers cannot show TIFF; convert it to PNG.
-    if (/\.tiff?$/i.test(rel.target)) { const png = zip.derived(`tiff-png:${rel.target}`, () => tiffToPng(zip.read(rel.target))); return png ? { bytes: png, mimeType: "image/png" } : undefined; }
+    if (/\.tiff?$/i.test(rel.target)) { const png = zip.derived(`tiff-png:${rel.target}`, () => tiffToPng(zip.read(rel.target))); return png ? { bytes: budget.binary(png), mimeType: "image/png" } : undefined; }
     const mimeType = imageMimeType(rel.target);
-    return mimeType ? { bytes: zip.read(rel.target), mimeType } : undefined;
+    return mimeType ? { bytes: budget.binary(zip.read(rel.target)), mimeType } : undefined;
   };
   for (const anchorNode of root.children) {
     if (typeof anchorNode === "string" || !/Anchor$/.test(anchorNode.localName)) continue;
