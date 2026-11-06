@@ -1,0 +1,1242 @@
+{
+  "defaultFont": {
+    "family": "Calibri",
+    "size": 11
+  },
+  "kind": "workbook",
+  "sheets": [
+    {
+      "cells": [
+        {
+          "display": "3Arrows",
+          "ref": "A1",
+          "type": "inlineStr",
+          "value": "3Arrows"
+        },
+        {
+          "display": "1",
+          "ref": "B1",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C1",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D1",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E1",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F1",
+          "value": "5"
+        },
+        {
+          "display": "3ArrowsGray",
+          "ref": "A2",
+          "type": "inlineStr",
+          "value": "3ArrowsGray"
+        },
+        {
+          "display": "1",
+          "ref": "B2",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C2",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D2",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E2",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F2",
+          "value": "5"
+        },
+        {
+          "display": "3Flags",
+          "ref": "A3",
+          "type": "inlineStr",
+          "value": "3Flags"
+        },
+        {
+          "display": "1",
+          "ref": "B3",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C3",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D3",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E3",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F3",
+          "value": "5"
+        },
+        {
+          "display": "3TrafficLights1",
+          "ref": "A4",
+          "type": "inlineStr",
+          "value": "3TrafficLights1"
+        },
+        {
+          "display": "1",
+          "ref": "B4",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C4",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D4",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E4",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F4",
+          "value": "5"
+        },
+        {
+          "display": "3TrafficLights2",
+          "ref": "A5",
+          "type": "inlineStr",
+          "value": "3TrafficLights2"
+        },
+        {
+          "display": "1",
+          "ref": "B5",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C5",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D5",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E5",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F5",
+          "value": "5"
+        },
+        {
+          "display": "3Signs",
+          "ref": "A6",
+          "type": "inlineStr",
+          "value": "3Signs"
+        },
+        {
+          "display": "1",
+          "ref": "B6",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C6",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D6",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E6",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F6",
+          "value": "5"
+        },
+        {
+          "display": "3Symbols",
+          "ref": "A7",
+          "type": "inlineStr",
+          "value": "3Symbols"
+        },
+        {
+          "display": "1",
+          "ref": "B7",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C7",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D7",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E7",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F7",
+          "value": "5"
+        },
+        {
+          "display": "3Symbols2",
+          "ref": "A8",
+          "type": "inlineStr",
+          "value": "3Symbols2"
+        },
+        {
+          "display": "1",
+          "ref": "B8",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C8",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D8",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E8",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F8",
+          "value": "5"
+        },
+        {
+          "display": "3Stars",
+          "ref": "A9",
+          "type": "inlineStr",
+          "value": "3Stars"
+        },
+        {
+          "display": "1",
+          "ref": "B9",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C9",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D9",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E9",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F9",
+          "value": "5"
+        },
+        {
+          "display": "3Triangles",
+          "ref": "A10",
+          "type": "inlineStr",
+          "value": "3Triangles"
+        },
+        {
+          "display": "1",
+          "ref": "B10",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C10",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D10",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E10",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F10",
+          "value": "5"
+        },
+        {
+          "display": "4Arrows",
+          "ref": "A11",
+          "type": "inlineStr",
+          "value": "4Arrows"
+        },
+        {
+          "display": "1",
+          "ref": "B11",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C11",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D11",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E11",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F11",
+          "value": "5"
+        },
+        {
+          "display": "4ArrowsGray",
+          "ref": "A12",
+          "type": "inlineStr",
+          "value": "4ArrowsGray"
+        },
+        {
+          "display": "1",
+          "ref": "B12",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C12",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D12",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E12",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F12",
+          "value": "5"
+        },
+        {
+          "display": "4RedToBlack",
+          "ref": "A13",
+          "type": "inlineStr",
+          "value": "4RedToBlack"
+        },
+        {
+          "display": "1",
+          "ref": "B13",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C13",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D13",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E13",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F13",
+          "value": "5"
+        },
+        {
+          "display": "4Rating",
+          "ref": "A14",
+          "type": "inlineStr",
+          "value": "4Rating"
+        },
+        {
+          "display": "1",
+          "ref": "B14",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C14",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D14",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E14",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F14",
+          "value": "5"
+        },
+        {
+          "display": "4TrafficLights",
+          "ref": "A15",
+          "type": "inlineStr",
+          "value": "4TrafficLights"
+        },
+        {
+          "display": "1",
+          "ref": "B15",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C15",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D15",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E15",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F15",
+          "value": "5"
+        },
+        {
+          "display": "5Arrows",
+          "ref": "A16",
+          "type": "inlineStr",
+          "value": "5Arrows"
+        },
+        {
+          "display": "1",
+          "ref": "B16",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C16",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D16",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E16",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F16",
+          "value": "5"
+        },
+        {
+          "display": "5ArrowsGray",
+          "ref": "A17",
+          "type": "inlineStr",
+          "value": "5ArrowsGray"
+        },
+        {
+          "display": "1",
+          "ref": "B17",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C17",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D17",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E17",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F17",
+          "value": "5"
+        },
+        {
+          "display": "5Rating",
+          "ref": "A18",
+          "type": "inlineStr",
+          "value": "5Rating"
+        },
+        {
+          "display": "1",
+          "ref": "B18",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C18",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D18",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E18",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F18",
+          "value": "5"
+        },
+        {
+          "display": "5Quarters",
+          "ref": "A19",
+          "type": "inlineStr",
+          "value": "5Quarters"
+        },
+        {
+          "display": "1",
+          "ref": "B19",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C19",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D19",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E19",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F19",
+          "value": "5"
+        },
+        {
+          "display": "5Boxes",
+          "ref": "A20",
+          "type": "inlineStr",
+          "value": "5Boxes"
+        },
+        {
+          "display": "1",
+          "ref": "B20",
+          "value": "1"
+        },
+        {
+          "display": "2",
+          "ref": "C20",
+          "value": "2"
+        },
+        {
+          "display": "3",
+          "ref": "D20",
+          "value": "3"
+        },
+        {
+          "display": "4",
+          "ref": "E20",
+          "value": "4"
+        },
+        {
+          "display": "5",
+          "ref": "F20",
+          "value": "5"
+        }
+      ],
+      "conditional": {
+        "B1": {
+          "icon": {
+            "index": 0,
+            "set": "3Arrows"
+          }
+        },
+        "B10": {
+          "icon": {
+            "index": 0,
+            "set": "3Triangles"
+          }
+        },
+        "B11": {
+          "icon": {
+            "index": 0,
+            "set": "4Arrows"
+          }
+        },
+        "B12": {
+          "icon": {
+            "index": 0,
+            "set": "4ArrowsGray"
+          }
+        },
+        "B13": {
+          "icon": {
+            "index": 0,
+            "set": "4RedToBlack"
+          }
+        },
+        "B14": {
+          "icon": {
+            "index": 0,
+            "set": "4Rating"
+          }
+        },
+        "B15": {
+          "icon": {
+            "index": 0,
+            "set": "4TrafficLights"
+          }
+        },
+        "B16": {
+          "icon": {
+            "index": 0,
+            "set": "5Arrows"
+          }
+        },
+        "B17": {
+          "icon": {
+            "index": 0,
+            "set": "5ArrowsGray"
+          }
+        },
+        "B18": {
+          "icon": {
+            "index": 0,
+            "set": "5Rating"
+          }
+        },
+        "B19": {
+          "icon": {
+            "index": 0,
+            "set": "5Quarters"
+          }
+        },
+        "B2": {
+          "icon": {
+            "index": 0,
+            "set": "3ArrowsGray"
+          }
+        },
+        "B20": {
+          "icon": {
+            "index": 0,
+            "set": "5Boxes"
+          }
+        },
+        "B3": {
+          "icon": {
+            "index": 0,
+            "set": "3Flags"
+          }
+        },
+        "B4": {
+          "icon": {
+            "index": 0,
+            "set": "3TrafficLights1"
+          }
+        },
+        "B5": {
+          "icon": {
+            "index": 0,
+            "set": "3TrafficLights2"
+          }
+        },
+        "B6": {
+          "icon": {
+            "index": 0,
+            "set": "3Signs"
+          }
+        },
+        "B7": {
+          "icon": {
+            "index": 0,
+            "set": "3Symbols"
+          }
+        },
+        "B8": {
+          "icon": {
+            "index": 0,
+            "set": "3Symbols2"
+          }
+        },
+        "B9": {
+          "icon": {
+            "index": 0,
+            "set": "3Stars"
+          }
+        },
+        "C1": {
+          "icon": {
+            "index": 1,
+            "set": "3Arrows"
+          }
+        },
+        "C10": {
+          "icon": {
+            "index": 1,
+            "set": "3Triangles"
+          }
+        },
+        "C11": {
+          "icon": {
+            "index": 1,
+            "set": "4Arrows"
+          }
+        },
+        "C12": {
+          "icon": {
+            "index": 1,
+            "set": "4ArrowsGray"
+          }
+        },
+        "C13": {
+          "icon": {
+            "index": 1,
+            "set": "4RedToBlack"
+          }
+        },
+        "C14": {
+          "icon": {
+            "index": 1,
+            "set": "4Rating"
+          }
+        },
+        "C15": {
+          "icon": {
+            "index": 1,
+            "set": "4TrafficLights"
+          }
+        },
+        "C16": {
+          "icon": {
+            "index": 1,
+            "set": "5Arrows"
+          }
+        },
+        "C17": {
+          "icon": {
+            "index": 1,
+            "set": "5ArrowsGray"
+          }
+        },
+        "C18": {
+          "icon": {
+            "index": 1,
+            "set": "5Rating"
+          }
+        },
+        "C19": {
+          "icon": {
+            "index": 1,
+            "set": "5Quarters"
+          }
+        },
+        "C2": {
+          "icon": {
+            "index": 1,
+            "set": "3ArrowsGray"
+          }
+        },
+        "C20": {
+          "icon": {
+            "index": 1,
+            "set": "5Boxes"
+          }
+        },
+        "C3": {
+          "icon": {
+            "index": 1,
+            "set": "3Flags"
+          }
+        },
+        "C4": {
+          "icon": {
+            "index": 1,
+            "set": "3TrafficLights1"
+          }
+        },
+        "C5": {
+          "icon": {
+            "index": 1,
+            "set": "3TrafficLights2"
+          }
+        },
+        "C6": {
+          "icon": {
+            "index": 1,
+            "set": "3Signs"
+          }
+        },
+        "C7": {
+          "icon": {
+            "index": 1,
+            "set": "3Symbols"
+          }
+        },
+        "C8": {
+          "icon": {
+            "index": 1,
+            "set": "3Symbols2"
+          }
+        },
+        "C9": {
+          "icon": {
+            "index": 1,
+            "set": "3Stars"
+          }
+        },
+        "D1": {
+          "icon": {
+            "index": 2,
+            "set": "3Arrows"
+          }
+        },
+        "D10": {
+          "icon": {
+            "index": 2,
+            "set": "3Triangles"
+          }
+        },
+        "D11": {
+          "icon": {
+            "index": 2,
+            "set": "4Arrows"
+          }
+        },
+        "D12": {
+          "icon": {
+            "index": 2,
+            "set": "4ArrowsGray"
+          }
+        },
+        "D13": {
+          "icon": {
+            "index": 2,
+            "set": "4RedToBlack"
+          }
+        },
+        "D14": {
+          "icon": {
+            "index": 2,
+            "set": "4Rating"
+          }
+        },
+        "D15": {
+          "icon": {
+            "index": 2,
+            "set": "4TrafficLights"
+          }
+        },
+        "D16": {
+          "icon": {
+            "index": 2,
+            "set": "5Arrows"
+          }
+        },
+        "D17": {
+          "icon": {
+            "index": 2,
+            "set": "5ArrowsGray"
+          }
+        },
+        "D18": {
+          "icon": {
+            "index": 2,
+            "set": "5Rating"
+          }
+        },
+        "D19": {
+          "icon": {
+            "index": 2,
+            "set": "5Quarters"
+          }
+        },
+        "D2": {
+          "icon": {
+            "index": 2,
+            "set": "3ArrowsGray"
+          }
+        },
+        "D20": {
+          "icon": {
+            "index": 2,
+            "set": "5Boxes"
+          }
+        },
+        "D3": {
+          "icon": {
+            "index": 2,
+            "set": "3Flags"
+          }
+        },
+        "D4": {
+          "icon": {
+            "index": 2,
+            "set": "3TrafficLights1"
+          }
+        },
+        "D5": {
+          "icon": {
+            "index": 2,
+            "set": "3TrafficLights2"
+          }
+        },
+        "D6": {
+          "icon": {
+            "index": 2,
+            "set": "3Signs"
+          }
+        },
+        "D7": {
+          "icon": {
+            "index": 2,
+            "set": "3Symbols"
+          }
+        },
+        "D8": {
+          "icon": {
+            "index": 2,
+            "set": "3Symbols2"
+          }
+        },
+        "D9": {
+          "icon": {
+            "index": 2,
+            "set": "3Stars"
+          }
+        },
+        "E1": {
+          "icon": {
+            "index": 2,
+            "set": "3Arrows"
+          }
+        },
+        "E10": {
+          "icon": {
+            "index": 2,
+            "set": "3Triangles"
+          }
+        },
+        "E11": {
+          "icon": {
+            "index": 3,
+            "set": "4Arrows"
+          }
+        },
+        "E12": {
+          "icon": {
+            "index": 3,
+            "set": "4ArrowsGray"
+          }
+        },
+        "E13": {
+          "icon": {
+            "index": 3,
+            "set": "4RedToBlack"
+          }
+        },
+        "E14": {
+          "icon": {
+            "index": 3,
+            "set": "4Rating"
+          }
+        },
+        "E15": {
+          "icon": {
+            "index": 3,
+            "set": "4TrafficLights"
+          }
+        },
+        "E16": {
+          "icon": {
+            "index": 3,
+            "set": "5Arrows"
+          }
+        },
+        "E17": {
+          "icon": {
+            "index": 3,
+            "set": "5ArrowsGray"
+          }
+        },
+        "E18": {
+          "icon": {
+            "index": 3,
+            "set": "5Rating"
+          }
+        },
+        "E19": {
+          "icon": {
+            "index": 3,
+            "set": "5Quarters"
+          }
+        },
+        "E2": {
+          "icon": {
+            "index": 2,
+            "set": "3ArrowsGray"
+          }
+        },
+        "E20": {
+          "icon": {
+            "index": 3,
+            "set": "5Boxes"
+          }
+        },
+        "E3": {
+          "icon": {
+            "index": 2,
+            "set": "3Flags"
+          }
+        },
+        "E4": {
+          "icon": {
+            "index": 2,
+            "set": "3TrafficLights1"
+          }
+        },
+        "E5": {
+          "icon": {
+            "index": 2,
+            "set": "3TrafficLights2"
+          }
+        },
+        "E6": {
+          "icon": {
+            "index": 2,
+            "set": "3Signs"
+          }
+        },
+        "E7": {
+          "icon": {
+            "index": 2,
+            "set": "3Symbols"
+          }
+        },
+        "E8": {
+          "icon": {
+            "index": 2,
+            "set": "3Symbols2"
+          }
+        },
+        "E9": {
+          "icon": {
+            "index": 2,
+            "set": "3Stars"
+          }
+        },
+        "F1": {
+          "icon": {
+            "index": 2,
+            "set": "3Arrows"
+          }
+        },
+        "F10": {
+          "icon": {
+            "index": 2,
+            "set": "3Triangles"
+          }
+        },
+        "F11": {
+          "icon": {
+            "index": 3,
+            "set": "4Arrows"
+          }
+        },
+        "F12": {
+          "icon": {
+            "index": 3,
+            "set": "4ArrowsGray"
+          }
+        },
+        "F13": {
+          "icon": {
+            "index": 3,
+            "set": "4RedToBlack"
+          }
+        },
+        "F14": {
+          "icon": {
+            "index": 3,
+            "set": "4Rating"
+          }
+        },
+        "F15": {
+          "icon": {
+            "index": 3,
+            "set": "4TrafficLights"
+          }
+        },
+        "F16": {
+          "icon": {
+            "index": 4,
+            "set": "5Arrows"
+          }
+        },
+        "F17": {
+          "icon": {
+            "index": 4,
+            "set": "5ArrowsGray"
+          }
+        },
+        "F18": {
+          "icon": {
+            "index": 4,
+            "set": "5Rating"
+          }
+        },
+        "F19": {
+          "icon": {
+            "index": 4,
+            "set": "5Quarters"
+          }
+        },
+        "F2": {
+          "icon": {
+            "index": 2,
+            "set": "3ArrowsGray"
+          }
+        },
+        "F20": {
+          "icon": {
+            "index": 4,
+            "set": "5Boxes"
+          }
+        },
+        "F3": {
+          "icon": {
+            "index": 2,
+            "set": "3Flags"
+          }
+        },
+        "F4": {
+          "icon": {
+            "index": 2,
+            "set": "3TrafficLights1"
+          }
+        },
+        "F5": {
+          "icon": {
+            "index": 2,
+            "set": "3TrafficLights2"
+          }
+        },
+        "F6": {
+          "icon": {
+            "index": 2,
+            "set": "3Signs"
+          }
+        },
+        "F7": {
+          "icon": {
+            "index": 2,
+            "set": "3Symbols"
+          }
+        },
+        "F8": {
+          "icon": {
+            "index": 2,
+            "set": "3Symbols2"
+          }
+        },
+        "F9": {
+          "icon": {
+            "index": 2,
+            "set": "3Stars"
+          }
+        }
+      },
+      "maxColumn": 6,
+      "maxRow": 20,
+      "name": "Icons"
+    }
+  ],
+  "styles": [
+    {}
+  ],
+  "title": "icons.xlsx"
+}

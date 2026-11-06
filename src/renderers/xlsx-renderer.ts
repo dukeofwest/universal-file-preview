@@ -7,6 +7,8 @@ import { formatGeneral } from "../parsers/xlsx-number-format.js";
 import { renderPptxElement } from "./drawingml-renderer.js";
 import { fontStack } from "./fonts.js";
 import { createImageUrl, revokeImageUrls } from "./image-url.js";
+import { filterButtonSvg, iconSvg, slicerIconsSvg } from "./spreadsheet-icons.js";
+import { svgElement } from "./svg-elements.js";
 import type { FileRenderer, RendererContext, RendererInstance } from "./types.js";
 import { allowsGeneralShrink, cellAccessibleLabel, columnWidthPixels, defaultColumnPixels, noticeDiagnostics, rowInfoAt } from "./workbook-layout.js";
 
@@ -381,7 +383,7 @@ class SheetView {
     if (this.sheet.filterButtons?.includes(ref)) {
       const size = Math.min(rect.height - 2, Math.round(16 * this.scale));
       const button = box("ufp-filter-button", rect.left + rect.width - size - 2, rect.top + rect.height - size - 2, size, size);
-      button.innerHTML = `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="15" fill="#fff" stroke="#a6a6a6"/><path d="M4.5 6.5h7L8 10.5z" fill="#444"/></svg>`;
+      button.append(svgElement(filterButtonSvg));
       result.push(button);
     }
     if (conditional?.icon) result.push(this.iconElement(conditional.icon, rect));
@@ -536,7 +538,7 @@ class SheetView {
   private iconElement(icon: { set: string; index: number }, rect: { left: number; top: number; width: number; height: number }): HTMLElement {
     const size = Math.round(Math.min(16 * this.scale, rect.height - 2));
     const element = box("ufp-cell-icon", rect.left + Math.round(2 * this.scale), rect.top + rect.height - size - Math.round(2 * this.scale), size, size);
-    element.innerHTML = iconSvg(icon.set, icon.index);
+    element.append(svgElement(iconSvg(icon.set, icon.index)));
     return element;
   }
 
@@ -587,7 +589,7 @@ class SheetView {
       const icons = box("ufp-slicer-icons", inner.width - px(59), Math.round((height - px(16)) / 2), px(48), px(16));
       icons.setAttribute("aria-hidden", "true");
       // Multi-select and clear-filter buttons; the clear button's cross turns red while the slicer filters.
-      icons.innerHTML = `<svg viewBox="0 0 48 16" width="100%" height="100%"><path d="M1.5 3.5l1.5 1.5 3-3M1.5 8.5l1.5 1.5 3-3M1.5 13.5l1.5 1.5 3-3" fill="none" stroke="#595959"/><path d="M8 4.5h8M8 9.5h8M8 14.5h8" stroke="#595959"/><path d="M32.5 2.5h11l-4.5 5v5l-2-1.2v-3.8z" fill="none" stroke="#7f7f7f"/><path d="M41.5 10.5l4 4M45.5 10.5l-4 4" stroke="${slicer.filtered ? "#e81123" : "#a6a6a6"}" stroke-width="1.2"/></svg>`;
+      icons.append(svgElement(slicerIconsSvg(!!slicer.filtered)));
       frame.append(caption, rule, icons);
       itemsTop = height + Math.max(1, px(1)) + px(4);
     }
@@ -862,32 +864,6 @@ function mix(a: string, b: string, amount: number): string {
   const parse = (hex: string) => [1, 3, 5].map(index => Number.parseInt(hex.slice(index, index + 2), 16));
   const x = parse(a), y = parse(b);
   return `#${x.map((channel, index) => Math.round(channel + (y[index]! - channel) * amount).toString(16).padStart(2, "0")).join("")}`;
-}
-
-/** Conditional-format icon sets drawn as small SVGs (shapes and colors follow Excel's icon families). */
-function iconSvg(set: string, index: number): string {
-  const count = Number(set[0]) || 3, level = count - 1 - index; // level 0 = best
-  const green = "#3e9a6a", yellow = "#f2c14e", red = "#d9534f", gray = "#8c8c8c", black = "#404040";
-  const traffic = [green, yellow, red, black];
-  const svg = (content: string) => `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true">${content}</svg>`;
-  const arrow = (angle: number, color: string) => svg(`<g transform="rotate(${angle} 8 8)"><path d="M8 2 L13 8 H10 V14 H6 V8 H3 Z" fill="${color}"/></g>`);
-  const arrowAngles = count === 3 ? [0, 90, 180] : count === 4 ? [0, 45, 135, 180] : [0, 45, 90, 135, 180];
-  const colorFor = (position: number) => count === 3 ? [green, yellow, red][position]! : count === 4 ? [green, yellow, "#f08c3a", red][position]! : [green, "#9bc84f", yellow, "#f08c3a", red][position]!;
-  if (/Arrows/.test(set)) return arrow(arrowAngles[level] ?? 90, /Gray/.test(set) ? gray : colorFor(level));
-  if (/Triangles/.test(set)) return svg(level === 0 ? `<path d="M8 3 L14 12 H2 Z" fill="${green}"/>` : level === count - 1 ? `<path d="M8 13 L14 4 H2 Z" fill="${red}"/>` : `<rect x="3" y="7" width="10" height="3" fill="${yellow}"/>`);
-  if (/Stars/.test(set)) { const fill = level === 0 ? "#f4b400" : level === 1 ? "url(#h)" : "none"; return svg(`<defs><linearGradient id="h"><stop offset="50%" stop-color="#f4b400"/><stop offset="50%" stop-color="#fff"/></linearGradient></defs><path d="M8 1.5l1.9 4.2 4.6.4-3.5 3 1.1 4.5L8 11.2 3.9 13.6 5 9.1 1.5 6.1l4.6-.4z" fill="${fill}" stroke="#f4b400"/>`); }
-  if (/Rating|Boxes/.test(set)) { const filled = count - 1 - level; let bars = ""; for (let bar = 0; bar < 4; bar++) bars += `<rect x="${2 + bar * 3.2}" y="${11 - bar * 3}" width="2.4" height="${3 + bar * 3}" fill="${bar < filled ? "#3f6fb5" : "#d0d7e5"}"/>`; return svg(bars); }
-  if (/Quarters/.test(set)) { const portion = (count - 1 - level) / 4; const angle = portion * 2 * Math.PI, x = 8 + 6 * Math.sin(angle), y = 8 - 6 * Math.cos(angle); return svg(`<circle cx="8" cy="8" r="6" fill="#fff" stroke="${black}"/>${portion >= 1 ? `<circle cx="8" cy="8" r="6" fill="${black}"/>` : portion > 0 ? `<path d="M8 8 V2 A6 6 0 ${portion > 0.5 ? 1 : 0} 1 ${x} ${y} Z" fill="${black}"/>` : ""}`); }
-  if (/Symbols/.test(set)) {
-    const color = [green, yellow, red][level] ?? red;
-    const mark = level === 0 ? `<path d="M4.5 8.2l2.3 2.3 4.7-4.8" stroke="#fff" stroke-width="1.8" fill="none"/>` : level === 1 ? `<rect x="7.1" y="3.8" width="1.8" height="5.2" fill="#fff"/><rect x="7.1" y="10.4" width="1.8" height="1.8" fill="#fff"/>` : `<path d="M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6" stroke="#fff" stroke-width="1.8"/>`;
-    return svg(set === "3Symbols2" ? mark.replace(/#fff/g, color) : `<circle cx="8" cy="8" r="6.5" fill="${color}"/>${mark}`);
-  }
-  if (/Flags/.test(set)) return svg(`<path d="M4 2v12" stroke="${black}" stroke-width="1.2"/><path d="M4.6 2.5h8l-2 3 2 3h-8z" fill="${[green, yellow, red][level] ?? red}"/>`);
-  if (/Signs/.test(set)) return svg(level === 0 ? `<circle cx="8" cy="8" r="6" fill="${green}"/>` : level === 1 ? `<path d="M8 2 L14 13 H2 Z" fill="${yellow}"/>` : `<path d="M8 2 L14 8 L8 14 L2 8 Z" fill="${red}"/>`);
-  const color = traffic[Math.min(level, traffic.length - 1)]!;
-  const ring = /TrafficLights2/.test(set) ? `<circle cx="8" cy="8" r="7" fill="${black}"/>` : "";
-  return svg(`${ring}<circle cx="8" cy="8" r="${ring ? 5.2 : 6.5}" fill="${count === 4 && level === 3 ? black : color}"/>`);
 }
 
 function box(className: string, left: number, top: number, width: number, height: number, styles: Styles = {}): HTMLDivElement {

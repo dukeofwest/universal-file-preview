@@ -175,6 +175,18 @@ const xlsxSlicer = () => {
   };
 };
 
+// Every conditional-format icon family, one row per family: values 1 to 5 against thresholds 1..N, so each row
+// shows every icon of its set (browser regression coverage for the spreadsheet icons).
+const iconFamilies = ["3Arrows", "3ArrowsGray", "3Flags", "3TrafficLights1", "3TrafficLights2", "3Signs", "3Symbols", "3Symbols2", "3Stars", "3Triangles", "4Arrows", "4ArrowsGray", "4RedToBlack", "4Rating", "4TrafficLights", "5Arrows", "5ArrowsGray", "5Rating", "5Quarters", "5Boxes"];
+const xlsxIcons = () => ({
+  "xl/workbook.xml": workbookXml(`<sheet name="Icons" r:id="rId1"/>`),
+  "xl/_rels/workbook.xml.rels": rels([["rId1", "worksheets/sheet1.xml"], ["rId3", "theme/theme1.xml", "theme"]]),
+  "xl/theme/theme1.xml": theme,
+  "xl/worksheets/sheet1.xml": `<worksheet><sheetData>${iconFamilies.map((family, index) => `<row r="${index + 1}"><c r="A${index + 1}" t="inlineStr"><is><t>${family}</t></is></c>${[1, 2, 3, 4, 5].map(value => `<c r="${String.fromCharCode(65 + value)}${index + 1}"><v>${value}</v></c>`).join("")}</row>`).join("")}</sheetData>`
+    + iconFamilies.map((family, index) => `<conditionalFormatting sqref="B${index + 1}:F${index + 1}"><cfRule type="iconSet" priority="${index + 1}"><iconSet iconSet="${family}">${Array.from({ length: Number(family[0]) }, (_, position) => `<cfvo type="num" val="${position + 1}"/>`).join("")}</iconSet></cfRule></conditionalFormatting>`).join("")
+    + `</worksheet>`,
+});
+
 /**
  * Every synthetic OOXML fixture in the existing suite. `kind` selects the parser;
  * `options` is passed to parseXlsx exactly as the original test does (or `undefined`).
@@ -193,6 +205,7 @@ export const ooxmlFixtures = [
   { id: "xlsx-table", source: "tests/xlsx.test.mjs", kind: "xlsx", file: "table.xlsx", entries: xlsxTable },
   { id: "xlsx-drawing", source: "tests/xlsx.test.mjs", kind: "xlsx", file: "drawing.xlsx", entries: xlsxDrawing },
   { id: "xlsx-slicer", source: "tests/xlsx.test.mjs", kind: "xlsx", file: "slicer.xlsx", entries: xlsxSlicer },
+  { id: "xlsx-icons", source: "tests/spreadsheet-icons.test.mjs", kind: "xlsx", file: "icons.xlsx", entries: xlsxIcons },
 ];
 
 /** Builds the fixture's package bytes exactly as the original tests do (stored entries). */
