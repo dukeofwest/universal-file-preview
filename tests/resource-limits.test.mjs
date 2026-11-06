@@ -40,12 +40,21 @@ test("a DOCX with 1,000 relationships and 1,000 uses of one 32 MiB image decompr
   assert.ok(performance.now() - started < 5000);
 });
 
+/**
+ * A DOCX with nine unused 32 MiB images: 288 MiB, more than the 256 MiB budget, so reading them all
+ * would fail. Built once (compressing it is the expensive part) and shared by the tests below.
+ */
+let nineImages;
+const nineImageDocx = () => nineImages ??= makeZip({
+  "word/document.xml": '<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>text</w:t></w:r></w:p></w:body></w:document>',
+  "word/_rels/document.xml.rels": `<Relationships>${Array.from({ length: 9 }, (_, index) => `<Relationship Id="r${index}" Type="${IMAGE_REL}" Target="media/a${index}.png"/>`).join("")}</Relationships>`,
+  ...Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`word/media/a${index}.png`, big])),
+}, { deflate: true });
+
 test("unused DOCX media is never decompressed", () => {
-  const rels = Array.from({ length: 50 }, (_, index) => `<Relationship Id="r${index}" Type="${IMAGE_REL}" Target="media/a${index}.png"/>`).join("");
-  const media = Object.fromEntries(Array.from({ length: 50 }, (_, index) => [`word/media/a${index}.png`, big]));
-  const file = makeZip({ "word/document.xml": '<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>text</w:t></w:r></w:p></w:body></w:document>', "word/_rels/document.xml.rels": `<Relationships>${rels}</Relationships>`, ...media }, { deflate: true });
-  const { growth } = rssGrowth(() => parseDocx(new Uint8Array(file), "x.docx"));
-  assert.ok(growth < 100 * MiB, `memory grew ${Math.round(growth / MiB)} MiB for 1.6 GiB of unused media`);
+  // Eager reading would exceed the budget and throw; lazy reading never touches the media.
+  const { growth } = rssGrowth(() => parseDocx(new Uint8Array(nineImageDocx()), "x.docx"));
+  assert.ok(growth < 100 * MiB, `memory grew ${Math.round(growth / MiB)} MiB for 288 MiB of unused media`);
 });
 
 test("a PPTX listing one slide 10,000 times parses it once", () => {
@@ -79,12 +88,11 @@ test("an XLSX listing one worksheet 1,000 times reads it once; more than 1,024 s
 });
 
 test("the package budget counts each part once and stops at 256 MiB of distinct parts", () => {
-  const entries = Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`p${index}.bin`, big]));
-  const pkg = OoxmlPackage.open(new Uint8Array(makeZip(entries, { deflate: true })));
-  for (let repeat = 0; repeat < 3; repeat++) for (let index = 0; index < 8; index++) pkg.read(`p${index}.bin`);
+  const pkg = OoxmlPackage.open(new Uint8Array(nineImageDocx()));
+  for (let repeat = 0; repeat < 3; repeat++) for (let index = 0; index < 8; index++) pkg.read(`word/media/a${index}.png`);
   assert.equal(pkg.totalBytes, 8 * big.length, "repeated reads are free");
   assert.ok(pkg.totalBytes <= OOXML_LIMITS.maxTotalBytes);
-  assert.throws(() => pkg.read("p8.bin"), failsWith("resource-limit", /total size limit/));
+  assert.throws(() => pkg.read("word/media/a8.png"), failsWith("resource-limit", /total size limit/));
   assert.ok(pkg.totalBytes <= OOXML_LIMITS.maxTotalBytes, "nothing is decompressed past the budget");
 });
 
