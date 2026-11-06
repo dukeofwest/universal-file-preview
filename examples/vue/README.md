@@ -1,6 +1,6 @@
 # Vue 3 integration example
 
-A small Vue 3 application using the published `@dukeofwest/universal-file-preview` package (`0.2.0`). It uses the Composition API, strict TypeScript checks, and does not import the library source from this repository.
+A small Vue 3 application using the published `@dukeofwest/universal-file-preview` package (`0.2.1`). It uses the Composition API, strict TypeScript checks, and does not import the library source from this repository.
 
 ## Requirements
 

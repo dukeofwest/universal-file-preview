@@ -2,7 +2,7 @@
 
 Universal File Preview is a browser-side TypeScript library with a framework-agnostic DOM lifecycle API. It does not provide official Angular, React, or Vue adapter packages. The repository examples demonstrate how to own the viewer lifecycle from a standalone Angular component, React hooks, and Vue 3 Composition API.
 
-All three examples install the published `@dukeofwest/universal-file-preview@0.2.0` package. They import the public `FilePreviewer` class, pass a framework-managed host element as `container`, and provide a browser `File` through the public `PreviewFile` shape. They destroy the current instance on cleanup and before replacing it.
+All three examples install the published `@dukeofwest/universal-file-preview@0.2.1` package. They import the public `FilePreviewer` class, pass a framework-managed host element as `container`, and provide a browser `File` through the public `PreviewFile` shape. They destroy the current instance on cleanup and before replacing it.
 
 ```ts
 import { FilePreviewer } from "@dukeofwest/universal-file-preview";

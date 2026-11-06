@@ -1,6 +1,6 @@
 # React integration example
 
-A small React 19 application using the published `@dukeofwest/universal-file-preview` package (`0.2.0`). It uses function components, hooks, strict TypeScript, and does not import the library source from this repository.
+A small React 19 application using the published `@dukeofwest/universal-file-preview` package (`0.2.1`). It uses function components, hooks, strict TypeScript, and does not import the library source from this repository.
 
 ## Requirements
 
