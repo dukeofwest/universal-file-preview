@@ -102,7 +102,10 @@ window.__result = (async () => {
     await frames(1); await new Promise(r => setTimeout(r, 30));
     const now = snapshot(); stable = now === last ? stable + 1 : 0; last = now;
   }
-  const styles = [...container.querySelectorAll("style")].map(s => s.textContent).join("\\n");
+  // The viewer stylesheet, from a <style> element in the container or from a sheet the document adopted (0.3.0),
+  // serialized rule by rule so both mechanisms compare equal when the CSS is the same.
+  const sheetText = sheet => [...sheet.cssRules].map(rule => rule.cssText).join("\\n");
+  const styles = [...[...container.querySelectorAll("style")].map(s => s.sheet), ...document.adoptedStyleSheets].filter(Boolean).map(sheetText).join("\\n");
   const clone = container.cloneNode(true); clone.querySelectorAll("style").forEach(s => s.remove());
   // Object URLs differ on every run; renderer SVG ids (ufp-<kind>-<random>) are renamed in order of appearance.
   let markup = clone.innerHTML.replace(/blob:[^"')\\s]+/g, "blob:normalised");

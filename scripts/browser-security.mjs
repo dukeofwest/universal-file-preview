@@ -120,7 +120,11 @@ const viewFiles = {
   "scroll.docx": makeZip({ "word/document.xml": `<w:document xmlns:w="urn:w"><w:body>${Array.from({ length: 200 }, (_, index) => `<w:p><w:r><w:t>Paragraph ${index + 1}</w:t></w:r></w:p>`).join("")}</w:body></w:document>` }),
 };
 // The policy recommended in docs/security.md ("Deployment for untrusted files"); keep the two in sync.
-const CSP = "default-src 'self'; script-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'";
+// The recommended policy (docs/security.md): no 'unsafe-inline' for styles. The nonce page allows one nonce, for the
+// fallback <style> element of browsers without constructable stylesheets (styleNonce).
+const CSP = "default-src 'self'; script-src 'self'; img-src 'self' blob: data:; style-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'";
+const STYLE_NONCE = "ufp-csp-nonce-test";
+const CSP_NONCE = CSP.replace("style-src 'self'", `style-src 'self' 'nonce-${STYLE_NONCE}'`);
 const cspFiles = Object.fromEntries(ooxmlFixtures.filter(fixture => fixture.options === undefined).map(fixture => [`${fixture.id}.${fixture.kind}`, buildFixture(fixture)]));
 // Pattern fills are drawn with data: SVG backgrounds, which img-src must allow.
 cspFiles["pattern.xlsx"] = workbook('<sheetData><row r="1"><c r="A1" s="1" t="inlineStr"><is><t>pattern</t></is></c></row></sheetData>',
@@ -265,8 +269,11 @@ window.ready = true;
 const cspScript = `import { FilePreviewer } from "/dist/index.js";
 let violations = [];
 document.addEventListener("securitypolicyviolation", event => violations.push(event.violatedDirective + " " + (event.blockedURI || "inline") + " " + (event.sourceFile || "")));
+const sized = element => { element.style.setProperty("width", "900px"); element.style.setProperty("height", "600px"); return element; };
+/** True when the viewer stylesheet applies to the viewer root (it sets isolation: isolate on .ufp-root). */
+const styled = root => !!root && getComputedStyle(root).isolation === "isolate";
 window.renderAll = async (names) => {
-  const host = document.getElementById("host"), results = [];
+  const host = sized(document.getElementById("host")), results = [];
   for (const name of names) {
     host.replaceChildren(); violations = [];
     const bytes = new Uint8Array(await (await fetch("/fixture/" + encodeURIComponent(name))).arrayBuffer());
@@ -275,10 +282,45 @@ window.renderAll = async (names) => {
     await new Promise(done => setTimeout(done, 300));
     const patterns = [...host.querySelectorAll(".ufp-cell-fill")].filter(element => getComputedStyle(element).backgroundImage.startsWith('url("data:image/svg+xml')).length;
     const images = [...host.querySelectorAll("img")].map(image => image.complete && image.naturalWidth > 0);
-    results.push({ name, error, patterns, images: images.length, decoded: images.filter(Boolean).length, violations, rendered: !!host.querySelector(".ufp-content")?.children.length });
+    results.push({ name, error, patterns, images: images.length, decoded: images.filter(Boolean).length, violations, rendered: !!host.querySelector(".ufp-content")?.children.length, styled: styled(host.querySelector(".ufp-root")), styleElements: host.querySelectorAll("style").length });
     viewer.destroy();
   }
   return results;
+};
+/** Stylesheet mechanics: one adopted sheet per document or shadow root, shared and removed with the last viewer. */
+window.styleChecks = async () => {
+  violations = [];
+  const file = { name: "a.txt", source: new TextEncoder().encode("text") };
+  const make = () => { const element = sized(document.createElement("div")); document.body.append(element); return element; };
+  const before = document.adoptedStyleSheets.length, first = make(), second = make();
+  const one = new FilePreviewer({ container: first, file }), two = new FilePreviewer({ container: second, file });
+  const result = { adoptedWithTwo: document.adoptedStyleSheets.length - before, styleElements: document.querySelectorAll("style").length, styledBoth: styled(first.querySelector(".ufp-root")) && styled(second.querySelector(".ufp-root")) };
+  one.destroy(); result.adoptedAfterOne = document.adoptedStyleSheets.length - before; result.secondStillStyled = styled(second.querySelector(".ufp-root"));
+  two.destroy(); result.adoptedAfterBoth = document.adoptedStyleSheets.length - before;
+  first.remove(); second.remove();
+  // Shadow root: the sheet is adopted by the shadow root, not by the document.
+  const shadowHost = make(), shadow = shadowHost.attachShadow({ mode: "open" }), inner = sized(document.createElement("div"));
+  shadow.append(inner);
+  const shadowed = new FilePreviewer({ container: inner, file });
+  result.shadowAdopted = shadow.adoptedStyleSheets.length; result.shadowDocumentAdopted = document.adoptedStyleSheets.length - before; result.shadowStyled = styled(shadow.querySelector(".ufp-root"));
+  shadowed.destroy(); result.shadowAfterDestroy = shadow.adoptedStyleSheets.length; shadowHost.remove();
+  result.violations = violations;
+  return result;
+};
+/** Browsers without constructable stylesheets (simulated): the viewer falls back to a <style> element. */
+window.fallbackStyles = async (nonce) => {
+  violations = [];
+  const original = Object.getOwnPropertyDescriptor(CSSStyleSheet.prototype, "replaceSync");
+  Object.defineProperty(CSSStyleSheet.prototype, "replaceSync", { value: undefined, configurable: true, writable: true });
+  const element = sized(document.createElement("div")); document.body.append(element);
+  let viewer;
+  try { viewer = new FilePreviewer({ container: element, file: { name: "a.txt", source: new TextEncoder().encode("text") }, ...(nonce ? { styleNonce: nonce } : {}) }); }
+  finally { Object.defineProperty(CSSStyleSheet.prototype, "replaceSync", original); }
+  await new Promise(done => setTimeout(done, 100));
+  const style = element.querySelector("style");
+  const result = { styleElement: !!style, nonce: style?.nonce ?? "", styled: styled(element.querySelector(".ufp-root")), violations };
+  viewer.destroy(); result.removed = !element.querySelector("style"); element.remove();
+  return result;
 };
 window.ready = true;`;
 
@@ -286,7 +328,8 @@ const mime = { ".js": "text/javascript", ".css": "text/css", ".map": "applicatio
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, "http://host");
   if (url.pathname === "/") { response.writeHead(200, { "content-type": "text/html" }); return response.end(page); }
-  if (url.pathname === "/csp.html") { response.writeHead(200, { "content-type": "text/html", "content-security-policy": CSP }); return response.end('<!doctype html><meta charset="utf-8"><div id="host" style="width:900px;height:600px"></div><script type="module" src="/csp-test.js"></script>'); }
+  // No style attribute in the page: the policy blocks inline styles; the test script sizes the host through CSSOM.
+  if (url.pathname === "/csp.html" || url.pathname === "/csp-nonce.html") { response.writeHead(200, { "content-type": "text/html", "content-security-policy": url.pathname === "/csp.html" ? CSP : CSP_NONCE }); return response.end('<!doctype html><meta charset="utf-8"><div id="host"></div><script type="module" src="/csp-test.js"></script>'); }
   if (url.pathname === "/csp-test.js") { response.writeHead(200, { "content-type": "text/javascript" }); return response.end(cspScript); }
   if (url.pathname === "/control.svg") { response.writeHead(200, { "content-type": "text/plain" }); return response.end(evilSvg(ATTACKER)); }
   if (url.pathname === "/liveness") { response.writeHead(200); return response.end("ok"); }
@@ -546,9 +589,13 @@ async function run() {
       // Files that must be refused (the shared-string attack) are expected to fail under any policy.
       if (refusedFiles.has(result.name)) check(!!result.error, `${result.name} should be refused`);
       else check(!result.error && result.rendered, `${result.name} did not render (${result.error ?? "empty"})`);
-      // Sanitizing SVG that carries event handler attributes makes the browser report them as blocked
-      // inline handlers (script-src-attr). That is expected for the malicious fixtures only.
-      const unexpected = fixtures[result.name] ? result.violations.filter(violation => !violation.startsWith("script-src-attr ")) : result.violations;
+      check(result.styled && result.styleElements === 0, `${result.name}: the viewer stylesheet did not apply without 'unsafe-inline' (styled ${result.styled}, ${result.styleElements} <style> elements)`);
+      // Sanitizing SVG parses it with DOMParser, and the browser applies the page's policy to that inert document:
+      // event handler attributes are reported as blocked inline handlers (script-src-attr), and style attributes
+      // and <style> elements as blocked inline styles (style-src-attr, style-src-elem, reported from
+      // image-url.js). That is expected for the malicious fixtures only, and ends with the DOM-free sanitizer.
+      const expected = violation => violation.startsWith("script-src-attr ") || (/^style-src-(attr|elem) /.test(violation) && violation.includes("/renderers/image-url.js"));
+      const unexpected = fixtures[result.name] ? result.violations.filter(violation => !expected(violation)) : result.violations;
       check(!unexpected.length, `${result.name} caused violations: ${[...new Set(unexpected)].join("; ")}`);
     }
     const patterns = results.find(result => result.name === "pattern.xlsx")?.patterns ?? 0;
@@ -556,11 +603,29 @@ async function run() {
     const images = results.reduce((sum, result) => sum + result.decoded, 0);
     check(patterns > 0, "the pattern fill was not drawn, so the data: image path did not run");
     check(images > 0, "no image was decoded, so the blob: image path did not run");
+    // Stylesheet mechanics under the same policy.
+    const sheets = await evaluate(cspTab.sessionId, "window.styleChecks()");
+    check(sheets.adoptedWithTwo === 1 && sheets.styleElements === 0 && sheets.styledBoth, `two viewers should share one adopted stylesheet (${JSON.stringify(sheets)})`);
+    check(sheets.adoptedAfterOne === 1 && sheets.secondStillStyled && sheets.adoptedAfterBoth === 0, `the shared stylesheet should stay until the last viewer is destroyed (${JSON.stringify(sheets)})`);
+    check(sheets.shadowAdopted === 1 && sheets.shadowDocumentAdopted === 0 && sheets.shadowStyled && sheets.shadowAfterDestroy === 0, `a viewer in a shadow root should adopt the stylesheet there (${JSON.stringify(sheets)})`);
+    check(!sheets.violations.length, `stylesheet checks caused violations: ${sheets.violations.join("; ")}`);
+    // Without constructable stylesheets the fallback <style> element is blocked by the recommended policy ...
+    const blocked = await evaluate(cspTab.sessionId, "window.fallbackStyles()");
+    check(blocked.styleElement && !blocked.styled && blocked.violations.some(violation => violation.startsWith("style-src")), `the fallback <style> element should be blocked without a nonce (${JSON.stringify(blocked)})`);
+    check(blocked.removed, "the fallback <style> element was not removed by destroy()");
     checkExceptions();
     await closeTab(cspTab);
+    // ... and applies with styleNonce under a policy that allows that nonce.
+    const nonceTab = await openTab(`${HOST}/csp-nonce.html`, "csp-nonce");
+    await waitReady(nonceTab);
+    const allowed = await evaluate(nonceTab.sessionId, `window.fallbackStyles(${JSON.stringify(STYLE_NONCE)})`);
+    check(allowed.styleElement && allowed.styled && allowed.nonce === STYLE_NONCE && !allowed.violations.length, `the fallback <style> element should apply with styleNonce (${JSON.stringify(allowed)})`);
+    checkExceptions();
+    await closeTab(nonceTab);
     const handlerReports = results.reduce((sum, result) => sum + result.violations.length, 0);
-    record({ policy: CSP, results });
-    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} csp: ${results.length} files rendered under the recommended policy; ${patterns} pattern fill(s), ${images} decoded image(s); ${handlerReports} blocked inline-handler report(s), all from malicious SVG`);
+    record({ policy: CSP, results, sheets, fallback: { blocked, allowed } });
+    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} csp: ${results.length} files rendered and styled under the recommended policy (no 'unsafe-inline'); ${patterns} pattern fill(s), ${images} decoded image(s); ${handlerReports} report(s) of blocked inline handlers or styles, all from sanitizing malicious SVG`);
+    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} stylesheet: one shared adopted sheet per root (shadow root included), removed with the last viewer; fallback <style> blocked without a nonce, applied with styleNonce`);
   }
 
   // Final accounting, after every tab opened by the tests has closed.

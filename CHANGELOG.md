@@ -6,6 +6,8 @@
 - **Compatibility:** these limits can refuse some files that 0.2.x accepted:
   - Spreadsheets (XLSX and OpenDocument) may have at most 500,000 cells (previously 1,000,000). A workbook with more cells is refused with a `resource-limit` error.
   - XLSX text is counted more strictly: a cell's formatted display text now counts in addition to its value, as do the texts of hyperlinks, comments and other sheet content. A workbook in which long texts are repeated in many cells can therefore be refused although 0.2.2 accepted it (for example, a 32,767-character shared string may now be used by at most 1,023 cells, where 0.2.2 allowed 2,048).
+- The viewer stylesheet no longer needs `'unsafe-inline'` in a Content Security Policy: in browsers with constructable stylesheets (tested in Edge, Chrome and Firefox) it is adopted by the container's document or shadow root through `adoptedStyleSheets`, shared by all viewers there and removed with the last one. Other browsers get a `<style>` element in the container as before; the new `styleNonce` option sets its nonce. The viewer's icons are built with DOM methods instead of `innerHTML`.
+- **Compatibility:** in browsers with constructable stylesheets the viewer no longer adds a `<style>` element to the container, and its stylesheet now comes after all of the page's own stylesheets in the cascade. Application rules that override `ufp-*` classes from a stylesheet placed after the viewer need a more specific selector.
 
 ## 0.2.2 - 2026-11-06
 

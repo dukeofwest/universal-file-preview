@@ -167,7 +167,8 @@ test("image blob URLs are created and released only in image-url.ts", () => {
 });
 
 test("the viewer root contains layout, paint and style, isolates stacking and hides overflow", async () => {
-  const injected = readFileSync(new URL("../dist/api/file-previewer.js", import.meta.url), "utf8");
+  // The stylesheet the viewer adopts (or places in its fallback <style> element), and the optional package stylesheet.
+  const { VIEWER_CSS: injected } = await import("../dist/api/viewer-styles.js");
   const sheet = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
   for (const [label, css] of [["injected styles", injected], ["styles.css", sheet]]) {
     const rule = /\.ufp-root\s*\{([^}]*)\}/.exec(css)?.[1]?.replace(/\s+/g, "");

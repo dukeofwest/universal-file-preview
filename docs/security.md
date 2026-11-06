@@ -40,19 +40,19 @@ Because of these gaps, previewing untrusted uploads can still make the browser t
 - **Isolate the viewer** when documents come from other users. The strongest option is to render previews on a separate origin (for example a dedicated preview domain, embedded with an `<iframe>`), so that the preview page shares no cookies, storage, or same-origin access with your main application. Only a separate *site* (a different registrable domain, not a subdomain) lets browsers with site isolation run the preview in its own process; otherwise a preview that freezes can still freeze the embedding page.
 - **Apply a Content Security Policy.** The viewer needs:
   - `img-src blob: data:` (images are shown from `blob:` URLs; spreadsheet pattern fills use `data:` SVG images);
-  - `style-src 'unsafe-inline'` (the viewer adds one `<style>` element to the page; inline styles set through the DOM, as the viewer does, are not restricted by CSP);
+  - no `'unsafe-inline'` in `style-src` in browsers with constructable stylesheets (tested in Edge, Chrome and Firefox; Safari is untested): the viewer adopts its stylesheet with `adoptedStyleSheets`, and the styles it sets on elements through the DOM are not restricted by CSP. In browsers without constructable stylesheets the viewer adds a `<style>` element instead, which such a policy blocks unless you pass its nonce as `styleNonce` (and allow that nonce in `style-src`) or allow `'unsafe-inline'`. The viewer cannot reliably detect that this fallback was blocked: the preview then appears unstyled;
   - `connect-src` for the origins you load documents from with string URLs (not needed for `File`, `Blob`, or byte-array sources).
 
   A starting point for the page that hosts the viewer, to adapt to your application:
 
   ```
-  Content-Security-Policy: default-src 'self'; script-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; img-src 'self' blob: data:; style-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'
   ```
 
   Not allowing remote origins in `img-src` and `font-src` also prevents a document from making the browser contact a remote server through CSS, should such a bug exist.
 
-  When a document contains SVG with event handler attributes, the browser may report blocked inline event handlers (`script-src-attr`) while the viewer sanitizes that SVG. The handlers never run; the reports are expected and show the policy adding a second layer of protection.
-- **Trusted Types:** the viewer is not yet compatible with `require-trusted-types-for 'script'`. It sets a few static icons with `innerHTML` and parses SVG with `DOMParser`, which that policy blocks.
+  When a document contains SVG with event handler attributes or inline styles, the browser may report blocked inline event handlers (`script-src-attr`) or inline styles (`style-src-attr`, `style-src-elem`) while the viewer sanitizes that SVG. Nothing from that SVG runs or is applied to the page; the reports are expected and show the policy adding a second layer of protection.
+- **Trusted Types:** the viewer is not yet compatible with `require-trusted-types-for 'script'`. It builds its icons with DOM methods (no `innerHTML`), but still parses SVG with `DOMParser`, which that policy blocks.
 
 ## Application responsibilities
 

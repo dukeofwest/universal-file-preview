@@ -13,4 +13,11 @@ export interface PreviewOptions {
   readonly download?: boolean;
   readonly maxFileSize?: number;
   readonly registry?: RendererRegistry;
+  /**
+   * Nonce for the viewer's fallback `<style>` element. The viewer adopts a constructable stylesheet where the
+   * browser supports it, which needs no nonce and no `'unsafe-inline'`; only browsers without constructable
+   * stylesheets get a `<style>` element, which a Content Security Policy without `'unsafe-inline'` allows only
+   * with this nonce.
+   */
+  readonly styleNonce?: string;
 }

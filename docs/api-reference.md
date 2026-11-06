@@ -8,7 +8,7 @@ The root entry point is ESM-only. Public exports are defined in `src/index.ts`. 
 new FilePreviewer(options: PreviewOptions)
 ```
 
-Creates a viewer and appends its DOM and scoped styles to `options.container`.
+Creates a viewer and appends its DOM to `options.container`. The viewer stylesheet is adopted by the container's document or shadow root (one shared stylesheet, removed with the last viewer); in browsers without constructable stylesheets it is a `<style>` element in the container instead.
 
 ### `PreviewOptions`
 
@@ -21,6 +21,7 @@ Creates a viewer and appends its DOM and scoped styles to `options.container`.
 | `download` | `boolean` | `true` | Show or hide the download button. |
 | `maxFileSize` | `number` | `128 * 1024 * 1024` | Maximum input size in bytes; must be a positive safe integer. |
 | `registry` | `RendererRegistry` | default registry | Renderer registry to use. |
+| `styleNonce` | `string` | none | Nonce for the fallback `<style>` element, used only in browsers without constructable stylesheets, so a Content Security Policy without `'unsafe-inline'` can allow it. Must be a non-empty string. |
 
 ### `PreviewFile`
 
