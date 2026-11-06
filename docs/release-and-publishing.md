@@ -5,8 +5,8 @@ This document records the release procedure. Each release must be validated and 
 ## Current package metadata
 
 - Name: `@dukeofwest/universal-file-preview`
-- Current version: `0.2.1`
-- npm status: `0.2.1` is published publicly at [@dukeofwest/universal-file-preview](https://www.npmjs.com/package/@dukeofwest/universal-file-preview) (verified on 2026-11-06; the registry records commit `3da275e`).
+- Current version: `0.2.2`
+- npm status: `0.2.2` is published publicly at [@dukeofwest/universal-file-preview](https://www.npmjs.com/package/@dukeofwest/universal-file-preview) (verified on 2026-11-06; the registry records commit `d8b2e0e`).
 - Publishing requires two-factor authentication on the npm account; `npm publish` asks for a one-time code or browser confirmation.
 - Install: `npm install @dukeofwest/universal-file-preview`
 - Module format: ESM only; no CommonJS export is configured.
