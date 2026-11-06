@@ -37,7 +37,8 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "./dist/worker.js"
   ],
   "files": [
     "dist",

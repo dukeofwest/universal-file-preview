@@ -145,3 +145,12 @@ test("only the library's document renderers render worker models; renderParsed r
   assert.throws(() => registry.get("xlsx").renderParsed(word, context), error => error.code === "renderer-error");
   assert.throws(() => registry.get("ods").renderParsed(word, context), error => error.code === "renderer-error");
 });
+
+test("the worker entry point is exported and declared as having side effects, so bundlers keep it", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.deepEqual(manifest.exports["./worker"], { types: "./dist/worker.d.ts", import: "./dist/worker.js" });
+  // Without this, esbuild, Rollup and webpack drop `import "@dukeofwest/universal-file-preview/worker"` and emit an
+  // empty worker (seen with the Angular application builder before this entry was added).
+  assert.ok(manifest.sideEffects.includes("./dist/worker.js"), JSON.stringify(manifest.sideEffects));
+  assert.ok(manifest.sideEffects.includes("**/*.css"));
+});

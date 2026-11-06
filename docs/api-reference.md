@@ -51,7 +51,7 @@ const viewer = new FilePreviewer({
 });
 ```
 
-`workerUrl` is the URL at which your application serves `dist/worker.js` of this package.
+`workerUrl` is the URL of the package's worker script. With a bundler, a one-line local worker module that imports `@dukeofwest/universal-file-preview/worker` is the simplest way to get it; see [Set up worker mode](./installation.md#set-up-worker-mode).
 
 ### `PreviewFile`
 
