@@ -1,5 +1,9 @@
 /** Excel number-format engine (ECMA-376 Part 1, 18.8.31) with locale-aware separators and names, as Excel uses the viewer's regional settings. */
+import { PreviewError } from "../errors.js";
+
 export type FormattedValue = { text: string; color?: string; repeat?: { index: number; char: string } };
+/** Longest formatted text, matching Excel's limit for the text of a cell. */
+export const MAX_FORMATTED_TEXT = 32_767;
 export type NumberFormatOptions = { locale?: string; date1904?: boolean };
 
 type Token =
@@ -208,7 +212,13 @@ function render(section: Section, value: number, text: string | undefined, local
   const info = localeInfo(section.locale ?? locale), separators = localeInfo(locale);
   const out: string[] = [];
   let repeat: FormattedValue["repeat"];
-  const push = (piece: string) => { out.push(piece); };
+  // Formatted text is limited like cell text (32,767 characters); checked before each piece is added, so a format
+  // that repeats long text ("@@@@") cannot build an oversized string.
+  let length = 0;
+  const push = (piece: string) => {
+    if ((length += piece.length) > MAX_FORMATTED_TEXT) throw new PreviewError(`Formatted cell text exceeds ${MAX_FORMATTED_TEXT.toLocaleString("en-US")} characters.`, "resource-limit");
+    out.push(piece);
+  };
   const markRepeat = (char: string) => { if (!repeat) repeat = { index: out.join("").length, char }; };
   const finish = (): FormattedValue => {
     const result: FormattedValue = { text: out.join("") };

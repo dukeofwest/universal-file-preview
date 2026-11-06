@@ -22,6 +22,22 @@ const MAX_CF_CELLS = 1_000_000;
 const MAX_SHEETS = 1024;
 /** Parsed worksheet cells across the whole workbook, as for OpenDocument spreadsheets. */
 const MAX_WORKBOOK_CELLS = 1_000_000;
+/** Excel's limit for the text of one cell (OpenDocument cells have the same limit). */
+const MAX_CELL_TEXT = 32_767;
+/**
+ * Text of all cells together, in UTF-16 code units, counted for every cell: a shared string counts again for each
+ * cell that uses it, as do formatted display texts, formula text results and conditional-format display texts.
+ * Shared strings and shared number formats let a small file expand into far more text than it contains. 64 Mi code
+ * units allow about 70 characters for each of 1,000,000 cells (legitimate 960,000-cell workbooks with short texts
+ * or formatted amounts used 17 M); at most 128 MiB of text, where 0.2.1 had no bound at all.
+ */
+const MAX_WORKBOOK_TEXT = 64 * 1024 * 1024;
+type TextBudget = { remaining: number };
+/** Counts the text of one cell; fails the workbook (no truncation) when a cell or the workbook exceeds its limit. */
+function chargeText(budget: TextBudget, text: string): void {
+  if (text.length > MAX_CELL_TEXT) throw new PreviewError(`XLSX cell text is longer than ${MAX_CELL_TEXT.toLocaleString("en-US")} characters.`, "resource-limit");
+  if ((budget.remaining -= text.length) < 0) throw new PreviewError(`XLSX workbook text exceeds ${MAX_WORKBOOK_TEXT.toLocaleString("en-US")} characters.`, "resource-limit");
+}
 /**
  * Work limits for one workbook. Formula evaluation (uncached formulas, conditional formats and
  * sparkline sources) is charged one unit per cell it reads and FORMULA_EVALUATION_COST per evaluation; once the budget is spent, remaining
@@ -70,7 +86,7 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   const parsed: Parsed[] = [];
   // Each worksheet part is read once (a repeated target would multiply the work), and at most MAX_SHEETS sheets, as for OpenDocument.
   if (sheetNodes.length > MAX_SHEETS) throw new PreviewError(`XLSX workbook has more than ${MAX_SHEETS} sheets.`, "resource-limit");
-  const seenSheets = new Set<string>();
+  const seenSheets = new Set<string>(), text: TextBudget = { remaining: MAX_WORKBOOK_TEXT };
   let cellCount = 0;
   sheetNodes.forEach((sheetNode, index) => {
     const sheetName = attr(sheetNode, "name") ?? `Sheet ${index + 1}`;
@@ -81,7 +97,7 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
     const root = decodeXml(zip, rel.target);
     if (root.localName !== "worksheet") return;
     const state = attr(sheetNode, "state");
-    const { sheet, values, formulas } = readWorksheet(root, sheetName, shared, color, formatFor, locale, date1904);
+    const { sheet, values, formulas } = readWorksheet(root, sheetName, shared, color, formatFor, locale, date1904, text);
     // Each sheet is already bounded by the XML element limit; this bounds the workbook (one sheet past the limit at most is parsed).
     if ((cellCount += sheet.cells.length) > MAX_WORKBOOK_CELLS) throw new PreviewError(`XLSX workbook has more than ${MAX_WORKBOOK_CELLS.toLocaleString("en-US")} cells.`, "resource-limit");
     if (state === "hidden" || state === "veryHidden") sheet.hidden = true;
@@ -131,8 +147,9 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
       if (!cell || value === null || value instanceof FormulaError && value.code === "#NAME?") continue;
       const formatted = displayFor(value, formatFor(cell.style), locale, date1904);
       cell.value = value instanceof FormulaError ? value.code : typeof value === "boolean" ? (value ? "1" : "0") : String(value);
+      if (typeof value === "string") chargeText(text, cell.value);
       if (typeof value === "string") cell.type = "str"; else if (typeof value === "boolean") cell.type = "b"; else if (value instanceof FormulaError) cell.type = "e";
-      applyDisplay(cell, formatted);
+      applyDisplay(cell, formatted, text);
     }
   }
   const tablesById = new Map<number, TableInfo>(), pendingSlicers: PendingSlicer[] = [], remaining: Remaining = { hyperlinkCells: MAX_HYPERLINK_CELLS, filterColumns: MAX_FILTER_COLUMNS, slicerWork: MAX_SLICER_WORK }, formattedCells = { remaining: MAX_CF_CELLS };
@@ -146,7 +163,7 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   for (const entry of parsed) {
     const rels = readRelationships(zip, entry.path);
     readSheetExtras(zip, entry.root, entry.sheet, rels, styles, theme, themeRoot, tablesById, pendingSlicers, remaining);
-    const conditional = withinLimits(() => evaluateConditionalFormats(entry.root, entry.sheet, styles, theme, palette, (row, column) => cellValue(entry.sheet.name, row, column), (row, column) => ruleContext(entry.sheet.name, row, column), locale, date1904, formattedCells), {});
+    const conditional = withinLimits(() => evaluateConditionalFormats(entry.root, entry.sheet, styles, theme, palette, (row, column) => cellValue(entry.sheet.name, row, column), (row, column) => ruleContext(entry.sheet.name, row, column), locale, date1904, formattedCells, text), {});
     if (Object.keys(conditional).length) entry.sheet.conditional = conditional;
     const sparklines = withinLimits(() => readSparklines(entry.root, entry.sheet.name, cellValue, theme, palette), []);
     if (sparklines.length) entry.sheet.sparklines = sparklines;
@@ -159,7 +176,8 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   return { kind: "workbook", sheets: parsed.map(entry => entry.sheet), title: name, styles: styles.cellStyles, defaultFont: styles.defaultFont, ...(activeSheet ? { activeSheet } : {}), ...(date1904 ? { date1904 } : {}) };
 }
 
-function applyDisplay(cell: SpreadsheetCell, formatted: FormattedValue): void {
+function applyDisplay(cell: SpreadsheetCell, formatted: FormattedValue, text: TextBudget): void {
+  if (formatted.text !== cell.value) chargeText(text, formatted.text);
   cell.display = formatted.text;
   if (formatted.color) cell.displayColor = formatted.color; else delete cell.displayColor;
   if (formatted.repeat) cell.repeat = formatted.repeat; else delete cell.repeat;
@@ -171,7 +189,7 @@ function displayFor(value: CellValue, format: string, locale: string, date1904: 
   return formatValue(value, format, { locale, date1904 });
 }
 
-function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string; runs?: SpreadsheetRun[] }>, color: (node: XmlNode | undefined, fallback?: string) => string | undefined, formatFor: (style: number | undefined) => string, locale: string, date1904: boolean) {
+function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string; runs?: SpreadsheetRun[] }>, color: (node: XmlNode | undefined, fallback?: string) => string | undefined, formatFor: (style: number | undefined) => string, locale: string, date1904: boolean, text: TextBudget) {
   const cells: SpreadsheetCell[] = [], values = new Map<number, CellValue>(), formulas = new Map<number, { formula: string; origin: { row: number; column: number } }>();
   const sharedFormulas = new Map<string, { formula: string; origin: { row: number; column: number } }>();
   const rows: Record<number, SpreadsheetRow> = {};
@@ -218,8 +236,9 @@ function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string
         else if (type === "e") value = new FormulaError(output.value);
         else if (type === "d") { const date = new Date(output.value); value = Number.isNaN(date.valueOf()) ? output.value : dateToSerial(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date1904) + (date.getUTCHours() * 3600 + date.getUTCMinutes() * 60 + date.getUTCSeconds()) / 86400; }
         else { const number = Number(output.value); value = output.value.trim() !== "" && Number.isFinite(number) ? number : output.value; }
+        if (typeof value === "string") chargeText(text, value);
         values.set(key, value);
-        if (!(value === "" && !formulaNode)) applyDisplay(output, displayFor(value, formatFor(styleIndex), locale, date1904));
+        if (!(value === "" && !formulaNode)) applyDisplay(output, displayFor(value, formatFor(styleIndex), locale, date1904), text);
       }
       cells.push(output);
       maxRow = Math.max(maxRow, position.row); maxColumn = Math.max(maxColumn, position.column);
@@ -458,7 +477,7 @@ function resolveSlicers(zip: OoxmlPackage, workbook: XmlNode, relationships: Map
 }
 
 /** Evaluates conditional formatting into per-cell overlays (Excel applies all matching rules; higher priority wins per property). */
-function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: StyleSheet, theme: Theme, palette: string[], value: (row: number, column: number) => CellValue, context: (row: number, column: number) => FormulaContext, locale: string, date1904: boolean, formattedCells: { remaining: number }): Record<string, SpreadsheetConditional> {
+function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: StyleSheet, theme: Theme, palette: string[], value: (row: number, column: number) => CellValue, context: (row: number, column: number) => FormulaContext, locale: string, date1904: boolean, formattedCells: { remaining: number }, text: TextBudget): Record<string, SpreadsheetConditional> {
   type Rule = { node: XmlNode; ranges: SpreadsheetRange[]; priority: number; dxf?: SpreadsheetStyle; ext?: XmlNode; formulas: string[] };
   const rules: Rule[] = [];
   const extById = new Map<string, XmlNode>(), extRules: Rule[] = [];
@@ -525,7 +544,7 @@ function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: Sty
       entry.style = mergeUnder(entry.style, rule.dxf);
       if (rule.dxf.numberFormat && !entry.display) {
         const current = value(row, column);
-        if (typeof current === "number") entry.display = formatValue(current, rule.dxf.numberFormat, { locale, date1904 }).text;
+        if (typeof current === "number") { const display = formatValue(current, rule.dxf.numberFormat, { locale, date1904 }).text; chargeText(text, display); entry.display = display; }
       }
     });
     if (type === "colorScale") {
@@ -647,7 +666,7 @@ function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: Sty
     else continue;
     cells.forEach((cell, index) => {
       try { if (matcher(values[index]!, cell.row, cell.column)) applyDxf(cell.row, cell.column); }
-      catch (error) { if (error instanceof WorkLimitReached) throw error; /* malformed rule: ignore for this cell */ }
+      catch (error) { if (error instanceof WorkLimitReached || error instanceof PreviewError) throw error; /* malformed rule: ignore for this cell */ }
     });
   }
   return result;

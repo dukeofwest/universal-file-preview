@@ -1,6 +1,9 @@
 /** Small Excel formula evaluator used for conditional formatting and for formula cells saved without cached values. */
 import { dateToSerial, formatGeneral, serialToDate } from "./xlsx-number-format.js";
 
+/** Excel's limit for a text result; longer results are #VALUE!, and lengths are checked before a string is built. */
+const MAX_TEXT = 32_767;
+
 export class FormulaError { constructor(readonly code: string) {} }
 export type FormulaScalar = number | string | boolean | FormulaError | null;
 export type FormulaRange = { kind: "range"; sheet: string; top: number; left: number; bottom: number; right: number };
@@ -221,7 +224,7 @@ class Evaluator {
   private binary(op: string, left: FormulaScalar, right: FormulaScalar): FormulaScalar {
     if (left instanceof FormulaError) return left;
     if (right instanceof FormulaError) return right;
-    if (op === "&") return toText(left) + toText(right);
+    if (op === "&") { const a = toText(left), b = toText(right); return a.length + b.length > MAX_TEXT ? errors.value : a + b; }
     if (["=", "<>", "<", ">", "<=", ">="].includes(op)) {
       const order = compare(left, right);
       return op === "=" ? order === 0 : op === "<>" ? order !== 0 : op === "<" ? order < 0 : op === ">" ? order > 0 : op === "<=" ? order <= 0 : order >= 0;
@@ -334,9 +337,13 @@ class Evaluator {
       case "LOWER": return toText(arg(0)).toLowerCase();
       case "PROPER": return toText(arg(0)).toLowerCase().replace(/(^|[^\p{L}])(\p{L})/gu, (_all, before: string, letter: string) => before + letter.toUpperCase());
       case "TRIM": return toText(arg(0)).trim().replace(/ +/g, " ");
-      case "CONCATENATE": case "CONCAT": return this.values(args).map(toText).join("");
-      case "TEXTJOIN": { const delimiter = toText(arg(0)), skip = isTruthy(arg(1)); return this.values(args.slice(2)).map(toText).filter(text => !skip || text !== "").join(delimiter); }
-      case "REPT": { const count = num(1); return count instanceof FormulaError ? count : toText(arg(0)).repeat(Math.max(0, Math.min(32767, count))); }
+      case "CONCATENATE": case "CONCAT": return joinText(this.values(args).map(toText), "");
+      case "TEXTJOIN": { const delimiter = toText(arg(0)), skip = isTruthy(arg(1)); return joinText(this.values(args.slice(2)).map(toText).filter(text => !skip || text !== ""), delimiter); }
+      case "REPT": {
+        const count = num(1); if (count instanceof FormulaError) return count;
+        const text = toText(arg(0)), times = Math.max(0, Math.floor(count));
+        return text.length * times > MAX_TEXT ? errors.value : text.repeat(times);
+      }
       case "EXACT": return toText(arg(0)) === toText(arg(1));
       case "FIND": case "SEARCH": {
         const needle = toText(arg(0)), haystack = toText(arg(1)), start = num(2, 1);
@@ -344,7 +351,12 @@ class Evaluator {
         const index = name === "FIND" ? haystack.indexOf(needle, start - 1) : haystack.toLowerCase().indexOf(needle.toLowerCase(), start - 1);
         return index < 0 ? errors.value : index + 1;
       }
-      case "SUBSTITUTE": return toText(arg(0)).split(toText(arg(1))).join(toText(arg(2)));
+      case "SUBSTITUTE": {
+        const text = toText(arg(0)), old = toText(arg(1)), replacement = toText(arg(2));
+        if (old === "") return text; // as in Excel; splitting on "" would insert the replacement between every character
+        const parts = text.split(old);
+        return text.length + (parts.length - 1) * (replacement.length - old.length) > MAX_TEXT ? errors.value : parts.join(replacement);
+      }
       case "VALUE": return toNumber(arg(0));
       case "TODAY": return this.context.today ?? todaySerial();
       case "NOW": return this.context.today ?? todaySerial();
@@ -394,6 +406,12 @@ function toNumber(value: FormulaScalar): number | FormulaError {
   return Number.isFinite(number) && value.trim() !== "" ? (value.trim().endsWith("%") ? number / 100 : number) : errors.value;
 }
 
+/** Joins texts unless the result would exceed MAX_TEXT, which is #VALUE!. */
+function joinText(texts: string[], separator: string): string | FormulaError {
+  let length = Math.max(0, texts.length - 1) * separator.length;
+  for (const text of texts) if ((length += text.length) > MAX_TEXT) return errors.value;
+  return texts.join(separator);
+}
 function toText(value: FormulaScalar): string {
   if (value === null) return "";
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";

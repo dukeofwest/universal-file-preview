@@ -86,11 +86,24 @@ const workbook = (sheet, styles) => makeZip({
   "xl/worksheets/sheet1.xml": `<worksheet ${S}>${sheet}</worksheet>`,
 });
 const column = index => String.fromCharCode(65 + Math.floor(index / 26) - 1).replace("@", "") + String.fromCharCode(65 + index % 26);
+/** Fixtures the viewer must refuse; every other file must render. */
+const refusedFiles = new Set(["shared-attack.xlsx"]);
+/** `cells` cells (100 per row) all referring to one shared string of `length` characters. */
+const sharedStringBook = (cells, length) => makeZip({
+  "xl/workbook.xml": `<workbook ${S}><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+  "xl/_rels/workbook.xml.rels": '<Relationships><Relationship Id="rId1" Type="x/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="x/sharedStrings" Target="sharedStrings.xml"/></Relationships>',
+  "xl/sharedStrings.xml": `<sst ${S}><si><t>${"y".repeat(length)}</t></si></sst>`,
+  "xl/worksheets/sheet1.xml": `<worksheet ${S}><sheetData>${Array.from({ length: Math.ceil(cells / 100) }, (_, row) => `<row r="${row + 1}">${Array.from({ length: Math.min(100, cells - row * 100) }, (_, col) => `<c r="${column(col)}${row + 1}" t="s"><v>0</v></c>`).join("")}</row>`).join("")}</sheetData></worksheet>`,
+}, { deflate: true });
 // A grid with frozen first row and column and an input message on every cell (tooltip and frozen-pane checks).
 const bigRows = Array.from({ length: 200 }, (_, row) => `<row r="${row + 1}">${Array.from({ length: 40 }, (_, col) => `<c r="${column(col)}${row + 1}" t="inlineStr"><is><t>r${row + 1}c${col + 1}</t></is></c>`).join("")}</row>`).join("");
 const viewFiles = {
   "tooltip.xlsx": workbook(`<sheetViews><sheetView workbookViewId="0"><pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><sheetData>${bigRows}</sheetData><dataValidations count="1"><dataValidation type="none" allowBlank="1" showInputMessage="1" promptTitle="Input" prompt="An input message long enough to need several lines of text in the box." sqref="A1:AN200"/></dataValidations>`),
   "scroll.xlsx": workbook(`<sheetData>${Array.from({ length: 400 }, (_, index) => `<row r="${index + 1}"><c r="A${index + 1}"><v>${index + 1}</v></c></row>`).join("")}</sheetData>`),
+  // XLSX text limits: the 0.2.1 attack (100,000 cells sharing one 1,000,000-character string) must be refused; the
+  // largest accepted case (2,048 cells sharing one 32,767-character string, at the workbook text budget) must render.
+  "shared-attack.xlsx": sharedStringBook(100_000, 1_000_000), // refused (refusedFiles)
+  "shared-at-budget.xlsx": sharedStringBook(2048, 32_767),
   // Renderer work limits: thousands of overlapping full-size merges and whole-sheet column ranges.
   "limits.xlsx": workbook(`<cols>${'<col min="1" max="16384" width="9"/>'.repeat(20_000)}</cols><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>limits</t></is></c></row></sheetData><mergeCells count="5000">${'<mergeCell ref="A1:SF5001"/>'.repeat(5000)}</mergeCells>`),
   // A sheet image whose blob URL must be released when the grid re-renders.
@@ -220,6 +233,14 @@ window.scrolling = async () => {
   await show("scroll.docx");
   const content = host.querySelector(".ufp-content"); content.scrollTop = 500;
   return { gridTop, lateRow, contentTop: content.scrollTop, contentScrollable: content.scrollHeight > content.clientHeight };
+};
+window.textLimits = async () => {
+  const result = {};
+  for (const name of ["shared-attack.xlsx", "shared-at-budget.xlsx"]) {
+    const heap = performance.memory?.usedJSHeapSize ?? 0, started = performance.now(), error = await show(name);
+    result[name] = { error: error ?? null, ms: Math.round(performance.now() - started - 600), domTextChars: host.textContent.length, heapGrowthMiB: Math.round(((performance.memory?.usedJSHeapSize ?? 0) - heap) / 1048576), status: host.querySelector(".ufp-status")?.textContent ?? "" };
+  }
+  return result;
 };
 window.rendererLimits = async () => {
   const started = performance.now(), error = await show("limits.xlsx");
@@ -489,6 +510,20 @@ async function run() {
     console.log(`  ${failures.length === before ? "ok  " : "FAIL"} scrolling: grid scrollTop ${scroll.gridTop}, later rows rendered ${scroll.lateRow}; document scrollTop ${scroll.contentTop}`);
   }
 
+  step = "xlsx text limits";
+  {
+    const before = failures.length, text = await evaluate(mainTab.sessionId, "window.textLimits()");
+    const attack = text["shared-attack.xlsx"], atBudget = text["shared-at-budget.xlsx"];
+    check(/32,767/.test(attack.error ?? ""), `the 0.2.1 shared-string attack was not refused (${JSON.stringify(attack)})`);
+    check(attack.ms < 3000 && attack.domTextChars < 10_000, `the refused attack took ${attack.ms} ms or left ${attack.domTextChars} characters in the page`);
+    check(!atBudget.error, `the largest accepted shared-string workbook failed: ${atBudget.error}`);
+    // Residual bound, as for ODS: each visible cell may hold up to 32,767 characters (recorded, not hidden).
+    check(atBudget.ms < 5000, `the largest accepted shared-string workbook took ${atBudget.ms} ms`);
+    checkExceptions();
+    record(text);
+    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} xlsx text limits: attack refused in ${attack.ms} ms (${attack.domTextChars} chars in the page); largest accepted file rendered in ${atBudget.ms} ms with ${(atBudget.domTextChars / 1e6).toFixed(1)} M chars in the page`);
+  }
+
   step = "renderer limits";
   {
     const before = failures.length, limits = await evaluate(mainTab.sessionId, "window.rendererLimits()"), images = await evaluate(mainTab.sessionId, "window.imageRelease()");
@@ -507,7 +542,9 @@ async function run() {
     await waitReady(cspTab);
     const results = await evaluate(cspTab.sessionId, `window.renderAll(${JSON.stringify(Object.keys(files))})`);
     for (const result of results) {
-      check(!result.error && result.rendered, `${result.name} did not render (${result.error ?? "empty"})`);
+      // Files that must be refused (the shared-string attack) are expected to fail under any policy.
+      if (refusedFiles.has(result.name)) check(!!result.error, `${result.name} should be refused`);
+      else check(!result.error && result.rendered, `${result.name} did not render (${result.error ?? "empty"})`);
       // Sanitizing SVG that carries event handler attributes makes the browser report them as blocked
       // inline handlers (script-src-attr). That is expected for the malicious fixtures only.
       const unexpected = fixtures[result.name] ? result.violations.filter(violation => !violation.startsWith("script-src-attr ")) : result.violations;

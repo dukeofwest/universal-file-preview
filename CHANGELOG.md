@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2 - 2026-11-06
+
+This patch release fixes a resource-exhaustion issue in XLSX previews that 0.2.1 did not cover. Upgrading is recommended for applications that preview files from untrusted sources. There are no API changes.
+
+- **Security:** XLSX text is now limited: one cell may hold at most 32,767 characters (Excel's limit), and the text of all cells together, counted for every cell that uses it, at most 67,108,864 UTF-16 code units. A workbook that exceeds either limit is refused with a `resource-limit` error instead of being shown.
+- Formula text results longer than 32,767 characters are `#VALUE!`, as in Excel, and `SUBSTITUTE` with an empty search text returns the text unchanged, as in Excel.
+- Number formats that would produce more than 32,767 characters of text are refused.
+
 ## 0.2.1 - 2026-11-06
 
 This patch release hardens the handling of untrusted documents. Upgrading is recommended for applications that preview files from untrusted sources. There are no API changes; the new limits below can refuse or simplify unusual files.
