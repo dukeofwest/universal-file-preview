@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 - 2026-11-06
+
+This patch release hardens the handling of untrusted documents. Upgrading is recommended for applications that preview files from untrusted sources. There are no API changes; the new limits below can refuse or simplify unusual files.
 
 - **Security:** hardened the handling of embedded images and spreadsheet styles, and added resource limits for DOCX, PPTX, and XLSX files (total decompression, XLSX calculation, and image size). Upgrading is recommended for applications that preview files from untrusted sources.
 - Embedded images are shown only when their content matches a supported image type; media that does not match is no longer displayed. Unusual font names in documents may now fall back to a generic font.

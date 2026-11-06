@@ -1,6 +1,6 @@
 {
   "name": "@dukeofwest/universal-file-preview",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Browser-based TypeScript previews for images and selected DOCX, XLSX, PPTX, and OpenDocument spreadsheet (ODS) content.",
   "keywords": [
     "file-preview",
