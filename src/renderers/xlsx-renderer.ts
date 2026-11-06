@@ -6,13 +6,15 @@ import { parseXlsx } from "../parsers/xlsx.js";
 import { formatGeneral } from "../parsers/xlsx-number-format.js";
 import { renderPptxElement } from "./drawingml-renderer.js";
 import { fontStack } from "./fonts.js";
-import { createImageUrl } from "./image-url.js";
+import { createImageUrl, revokeImageUrls } from "./image-url.js";
 import type { FileRenderer, RendererContext, RendererInstance } from "./types.js";
 import { allowsGeneralShrink, cellAccessibleLabel, columnWidthPixels, defaultColumnPixels, noticeDiagnostics, rowInfoAt } from "./workbook-layout.js";
 
 const EMU_PER_PX = 9525;
 const GRIDLINE = "#e0e0e0";
 const MAX_ROWS = 1_048_576, MAX_COLUMNS = 16_384;
+/** Work limits for crafted sheets: cells marked as covered by merges, and columns given explicit widths. */
+const MAX_COVERED_CELLS = 2_000_000, MAX_COLUMN_INFO = 4 * MAX_COLUMNS;
 type Edge = SpreadsheetBorderEdge;
 const thinEdges = (color: string) => ({ left: { style: "thin", color }, right: { style: "thin", color }, top: { style: "thin", color }, bottom: { style: "thin", color } });
 /** Slicer parts a style leaves out look like Office's default light slicer. */
@@ -123,12 +125,18 @@ class SheetView {
     this.top.className = "ufp-grid-pane-top"; this.corner.className = "ufp-grid-pane-corner"; this.left.className = "ufp-grid-pane-left"; this.body.className = "ufp-grid-body";
     this.top.append(this.corner); this.canvas.append(this.top, this.left, this.body); this.element.append(this.canvas);
     for (const cell of sheet.cells) { const position = cellPosition(cell.ref); if (position) this.cells.set(key(position.row, position.column), cell); }
+    // Covered cells are limited in total (MAX_COVERED_CELLS), so many large or overlapping merges cannot multiply the work.
+    let coveredBudget = MAX_COVERED_CELLS;
     for (const range of sheet.merges ?? []) {
       this.mergeAt.set(key(range.top, range.left), range);
+      if (coveredBudget <= 0) continue;
+      coveredBudget -= (Math.min(range.bottom, range.top + 5000) - range.top + 1) * (Math.min(range.right, range.left + 500) - range.left + 1);
       for (let row = range.top; row <= Math.min(range.bottom, range.top + 5000); row++) for (let column = range.left; column <= Math.min(range.right, range.left + 500); column++) if (row !== range.top || column !== range.left) this.covered.set(key(row, column), range);
     }
     for (const sparkline of sheet.sparklines ?? []) { const position = cellPosition(sparkline.ref); if (position) this.sparklines.set(key(position.row, position.column), sparkline); }
-    for (const column of sheet.columns ?? []) for (let index = column.min; index <= Math.min(column.max, MAX_COLUMNS, column.min + 16_384); index++) this.columnInfo.set(index, column);
+    // Column ranges are expanded for at most MAX_COLUMN_INFO columns in total (real files have non-overlapping ranges).
+    let columnBudget = MAX_COLUMN_INFO;
+    for (const column of sheet.columns ?? []) for (let index = column.min; index <= Math.min(column.max, MAX_COLUMNS, column.min + 16_384) && columnBudget > 0; index++, columnBudget--) this.columnInfo.set(index, column);
     this.mdw = maxDigitWidth(workbook.defaultFont ?? { family: "Calibri", size: 11 });
     this.baseZoom = sheet.zoom ?? 1;
     this.frozenRows = sheet.frozen?.rows ?? 0; this.frozenColumns = sheet.frozen?.columns ?? 0;
@@ -171,7 +179,7 @@ class SheetView {
     document.fonts?.removeEventListener("loadingdone", this.onFontsLoaded);
     this.resizeObserver?.disconnect();
     if (this.frame) cancelAnimationFrame(this.frame);
-    for (const url of this.imageUrls) URL.revokeObjectURL(url);
+    revokeImageUrls(this.imageUrls);
     this.canvas.replaceChildren();
   }
 
@@ -244,6 +252,8 @@ class SheetView {
     Object.assign(this.top.style, { height: `${topHeight}px`, width: `${fullWidth}px` });
     Object.assign(this.corner.style, { height: `${topHeight}px`, width: `${leftWidth}px` });
     Object.assign(this.left.style, { height: `${fullHeight - topHeight}px`, width: `${leftWidth}px` });
+    // Drawings are rendered again below with new image URLs; release the previous ones.
+    revokeImageUrls(this.imageUrls);
     this.body.replaceChildren(); this.left.replaceChildren(); this.corner.replaceChildren();
     [...this.top.children].forEach(node => { if (node !== this.corner) node.remove(); });
     const frozenRows = { r1: 1, r2: this.frozenRows }, frozenColumns = { c1: 1, c2: this.frozenColumns };
@@ -537,7 +547,7 @@ class SheetView {
       if (!rect || rect.width < 0 || rect.height < 0 || rect.width + rect.height <= 0) continue;
       if (drawing.kind === "image") {
         // Unsupported or mislabelled media is left out (image-url.ts checks types and sanitizes SVG).
-        const url = createImageUrl(drawing.bytes, drawing.mimeType);
+        const url = createImageUrl(drawing.bytes, drawing.mimeType, this.imageUrls);
         if (!url) continue;
         this.imageUrls.push(url);
         const image = document.createElement("img"); image.className = "ufp-sheet-image"; image.src = url; image.alt = drawing.name ?? "";

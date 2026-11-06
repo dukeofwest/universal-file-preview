@@ -44,6 +44,9 @@ function decodeTiff(bytes: Uint8Array): { width: number; height: number; rgba: U
   if (!(depth === 8 || depth === 1 && samples === 1 && (photometric === 0 || photometric === 1)) || ![1, 5, 8, 32946, 32773].includes(compression)) return undefined;
   const tiled = tags.has(322);
   const blockWidth = tiled ? one(322, width) : width, blockHeight = tiled ? one(323, height) : Math.min(height, one(278, height));
+  // Tiles may extend past the image only up to the 16-pixel tile grid; the block buffer is sized from these values.
+  const gridded = (size: number) => Math.ceil(size / 16) * 16;
+  if (blockWidth < 1 || blockHeight < 1 || blockWidth > gridded(width) || blockHeight > gridded(height)) return undefined;
   const offsets = tags.get(tiled ? 324 : 273) ?? [], counts = tags.get(tiled ? 325 : 279) ?? [];
   const rowBytes = Math.ceil(blockWidth * samples * depth / 8), blockBytes = rowBytes * blockHeight;
   const across = Math.ceil(width / blockWidth), down = Math.ceil(height / blockHeight);

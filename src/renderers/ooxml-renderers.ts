@@ -3,7 +3,7 @@ import { parseDocx, parsePptx } from "../parsers/ooxml.js";
 import type { Paragraph, Presentation, PptxElement, PptxFill, PptxImageElement, PptxLine, PptxLineElement, PptxShapeElement, PptxTextElement, TextRun, WordPageLayout } from "../model.js";
 import { fontStack } from "./fonts.js";
 import { pptFillCss, renderPptxElement } from "./drawingml-renderer.js";
-import { createImageUrl } from "./image-url.js";
+import { createImageUrl, revokeImageUrls } from "./image-url.js";
 import type { FileRenderer, RendererContext, RendererInstance } from "./types.js";
 
 export class DocxRenderer implements FileRenderer {
@@ -78,7 +78,7 @@ export class DocxRenderer implements FileRenderer {
         const scale = Math.max(0.1, Math.min(2, (available - 32) / pageWidth));
         if (scale === 1) root.style.removeProperty("zoom"); else root.style.setProperty("zoom", String(scale));
       },
-      destroy() { for (const url of imageUrls) URL.revokeObjectURL(url); root.replaceChildren(); },
+      destroy() { revokeImageUrls(imageUrls); root.replaceChildren(); },
     };
   }
 }
@@ -169,7 +169,7 @@ function renderRun(run: TextRun, imageUrls: string[] = [], pageNumber = 1): HTML
   if (run.image) {
     const image = document.createElement("img");
     // Unsupported or mislabelled media is left out (image-url.ts checks types and signatures).
-    const url = createImageUrl(run.image.bytes, run.image.mimeType);
+    const url = createImageUrl(run.image.bytes, run.image.mimeType, imageUrls);
     if (!url) return document.createElement("span");
     imageUrls.push(url);
     image.src = url; image.alt = run.image.alt ?? ""; image.className = "ufp-word-image";
@@ -307,7 +307,7 @@ export class PptxRenderer implements FileRenderer {
     const imageUrls: string[] = [];
     let current = 0, zoom = 1;
     const show = () => {
-      for (const url of imageUrls.splice(0)) URL.revokeObjectURL(url);
+      revokeImageUrls(imageUrls);
       slide.replaceChildren(); const data = presentation.slides[current]!;
       slide.style.aspectRatio = `${data.width ?? 16} / ${data.height ?? 9}`;
       slide.style.background = data.background ? pptFillCss(data.background) : "#ffffff";
@@ -320,6 +320,6 @@ export class PptxRenderer implements FileRenderer {
     nav.append(previous, counter, next); root.append(nav, slide); show();
     const keyboard = (event: KeyboardEvent) => { if (event.key === "ArrowLeft") previous.click(); if (event.key === "ArrowRight") next.click(); };
     root.tabIndex = 0; root.addEventListener("keydown", keyboard);
-    return { element: root, setZoom(value) { zoom = Math.max(0.5, Math.min(2, value)); slide.style.transform = `scale(${zoom})`; }, fitToWidth() { zoom = 1; slide.style.transform = "scale(1)"; }, destroy() { root.removeEventListener("keydown", keyboard); for (const url of imageUrls) URL.revokeObjectURL(url); imageUrls.length = 0; } };
+    return { element: root, setZoom(value) { zoom = Math.max(0.5, Math.min(2, value)); slide.style.transform = `scale(${zoom})`; }, fitToWidth() { zoom = 1; slide.style.transform = "scale(1)"; }, destroy() { root.removeEventListener("keydown", keyboard); revokeImageUrls(imageUrls); } };
   }
 }

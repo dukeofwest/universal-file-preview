@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- **Security:** hardened the handling of embedded images and spreadsheet styles. Upgrading is recommended for applications that preview files from untrusted sources.
+- **Security:** hardened the handling of embedded images and spreadsheet styles, and added resource limits for DOCX, PPTX, and XLSX files (total decompression, XLSX calculation, and image size). Upgrading is recommended for applications that preview files from untrusted sources.
 - Embedded images are shown only when their content matches a supported image type; media that does not match is no longer displayed. Unusual font names in documents may now fall back to a generic font.
 - The viewer root now uses CSS containment (`contain: layout paint style`, `isolation: isolate`), so elements with `position: fixed` placed inside `.ufp-root` are positioned and clipped relative to the viewer.
-- The security documentation now lists the remaining known gaps (no total decompression budget for Office files, no overall limit on XLSX computation, synchronous parsing) and recommends a deployment and Content Security Policy for untrusted files.
+- Behaviour changes from the new limits: ZIP files whose records overlap or disagree between local and central headers are refused; Office XML parts that expand more than 100 times their compressed size are refused; a workbook with more than 1,024 sheets or 1,000,000 cells is refused; a slide or sheet listed more than once is shown once; images larger than 40 megapixels are not shown; and formulas beyond the calculation limit are shown as not calculated.
+- Spreadsheet views no longer keep image data for drawings that have scrolled out of view and been redrawn.
+- The security documentation now lists the remaining known gaps (synchronous parsing, fixed limits) and recommends a deployment and Content Security Policy for untrusted files.
 
 ## 0.2.0 - 2026-11-04
 

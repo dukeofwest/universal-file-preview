@@ -22,7 +22,7 @@ export function renderPptxElement(element: PptxElement, slideData: Presentation[
   if (element.kind === "image") {
     const frame = document.createElement("div"); frame.className = "ufp-pptx-image"; position(frame); frame.style.overflow = "hidden";
     // Unsupported or mislabelled media leaves an empty frame (image-url.ts checks types and sanitizes SVG).
-    const url = createImageUrl(element.image.bytes, element.image.mimeType);
+    const url = createImageUrl(element.image.bytes, element.image.mimeType, imageUrls);
     if (!url) return frame;
     imageUrls.push(url);
     const image = document.createElement("img");
@@ -297,7 +297,7 @@ function renderPptxGeometry(element: PptxShapeElement | PptxLineElement, slideDa
 
   // Shapes with useBgFill show the part of the slide background picture that lies beneath them.
   const backgroundImage = element.kind === "shape" && element.useBackgroundFill ? slideData.elements?.find((candidate): candidate is PptxImageElement => candidate.kind === "image" && Boolean(candidate.isBackground)) : undefined;
-  const backgroundUrl = backgroundImage && createImageUrl(backgroundImage.image.bytes, backgroundImage.image.mimeType);
+  const backgroundUrl = backgroundImage && createImageUrl(backgroundImage.image.bytes, backgroundImage.image.mimeType, imageUrls);
   if (backgroundImage && backgroundUrl) {
     const clip = document.createElementNS(svgNamespace, "clipPath"), clipId = pptUniqueId("clip");
     clip.id = clipId;

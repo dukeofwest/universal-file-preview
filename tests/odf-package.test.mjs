@@ -53,6 +53,7 @@ test("PackageReader opens packages with large unused parts that ZipArchive's def
   const archive = makeZip({ "content.xml": "<a/>", "Media/video.bin": "x" });
   const second = centralOffset(archive) + 46 + "content.xml".length;
   archive.writeUInt32LE(40 * 1024 * 1024, second + 24);
+  archive.writeUInt32LE(40 * 1024 * 1024, archive.readUInt32LE(second + 42) + 22); // the local header agrees
   fails(() => ZipArchive.open(archive), "resource-limit", /^ZIP entry exceeds the configured size limit\.$/);
   const reader = PackageReader.openZip(new Uint8Array(archive));
   assert.equal(reader.readText("content.xml"), "<a/>");

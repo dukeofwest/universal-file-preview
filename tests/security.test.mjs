@@ -158,10 +158,11 @@ test("renderers never assign concatenated cssText", () => {
   }
 });
 
-test("image blob URLs are created only in image-url.ts", () => {
+test("image blob URLs are created and released only in image-url.ts", () => {
   for (const [name, source] of rendererSources) {
     if (name === "image-url.ts") continue;
-    assert.doesNotMatch(source, /createObjectURL|new Blob\(/, `${name} creates a blob outside image-url.ts`);
+    // Releasing through revokeImageUrls keeps the per-document pixel accounting correct.
+    assert.doesNotMatch(source, /createObjectURL|revokeObjectURL|new Blob\(/, `${name} creates or revokes a blob outside image-url.ts`);
   }
 });
 

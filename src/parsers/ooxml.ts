@@ -1,16 +1,17 @@
 import { PreviewError } from "../errors.js";
-import { ZipArchive } from "../archive/zip-reader.js";
+import { OoxmlPackage } from "../package/ooxml-package.js";
 import { parseXml, elements, firstElement, textContent, type XmlNode } from "../xml/xml-parser.js";
 import type { Paragraph, Presentation, PptxElement, PptxFill, PptxImageElement, PptxLine, PptxShapeElement, PptxTableElement, PptxTextElement, PptxShadow, Table, TableBorder, TableCell, TableCellMargins, TextRun, WordBlock, WordDocument, WordDrawing, WordDrawingPath, WordPageLayout } from "../model.js";
 
 export { parseXlsx } from "./xlsx.js";
 
-const decodeXml = (archive: ZipArchive, path: string): XmlNode => parseXml(new TextDecoder("utf-8", { fatal: true }).decode(archive.read(path)));
+/** Parsed once per part and shared (OoxmlPackage caches parts and enforces the total decompression budget). */
+const decodeXml = (archive: OoxmlPackage, path: string): XmlNode => archive.xml(path);
 const child = (node: XmlNode | undefined, name: string) => node ? firstElement(node, name) : undefined;
 const attrs = (node: XmlNode | undefined) => node?.attributes ?? {};
 
 export function parseDocx(bytes: Uint8Array, name: string): WordDocument {
-  const zip = ZipArchive.open(bytes), document = decodeXml(zip, "word/document.xml");
+  const zip = OoxmlPackage.open(bytes), document = decodeXml(zip, "word/document.xml");
   const body = child(document, "body");
   if (!body) throw new PreviewError("DOCX document body is missing.", "invalid-file");
   const relationships = parseRelationships(zip, "word/_rels/document.xml.rels", "word");
@@ -50,7 +51,7 @@ type WordTableStyle = WordTableStyleRegion & { alignment?: Table["alignment"]; c
 type WordNumberingLevel = { format: string; text: string; indentLeft?: number; hanging?: number; tabPosition?: number; labelStyle?: Partial<TextRun> };
 type WordParseContext = {
   relationships: Map<string, string>;
-  images: Map<string, { bytes: Uint8Array; mimeType: string }>;
+  images: WordImages;
   styleContext: { defaults: WordStyle; styles: Map<string, WordStyle>; defaultStyle: WordStyle; tableStyles: Map<string, WordTableStyle>; themeFonts: Record<string, string> };
   themeColors: Record<string, string>;
   tableStyles: Map<string, WordTableStyle>;
@@ -349,7 +350,7 @@ function parseWordTable(node: XmlNode, context: WordParseContext): Table {
   return { rows, ...(width ? { width } : {}), ...(widthPercent ? { widthPercent } : {}), ...(alignment === "center" || alignment === "right" ? { alignment } : {}), ...(Object.keys(borders).length ? { borders } : {}), ...(Object.keys(cellMargins).length ? { cellMargins } : {}) };
 }
 
-function readWordStyles(zip: ZipArchive): { defaults: WordStyle; styles: Map<string, WordStyle>; defaultStyle: WordStyle; tableStyles: Map<string, WordTableStyle>; themeFonts: Record<string, string> } {
+function readWordStyles(zip: OoxmlPackage): { defaults: WordStyle; styles: Map<string, WordStyle>; defaultStyle: WordStyle; tableStyles: Map<string, WordTableStyle>; themeFonts: Record<string, string> } {
   const defaults: WordStyle = { paragraph: {}, run: {} }, styles = new Map<string, WordStyle>(), tableStyles = new Map<string, WordTableStyle>();
   const themeFonts = readThemeFonts(zip);
   if (!zip.has("word/styles.xml")) return { defaults, styles, defaultStyle: { paragraph: {}, run: {} }, tableStyles, themeFonts };
@@ -370,7 +371,7 @@ function readWordStyles(zip: ZipArchive): { defaults: WordStyle; styles: Map<str
   return { defaults, styles, defaultStyle: resolveWordStyle(defaultParagraphStyleId, styles), tableStyles, themeFonts };
 }
 
-function readThemeFonts(zip: ZipArchive): Record<string, string> {
+function readThemeFonts(zip: OoxmlPackage): Record<string, string> {
   if (!zip.has("word/theme/theme1.xml")) return {};
   const theme = decodeXml(zip, "word/theme/theme1.xml"), scheme = child(child(theme, "themeElements"), "fontScheme");
   const family = (group: string) => attribute(child(child(scheme, group), "latin"), "typeface");
@@ -385,7 +386,7 @@ function readThemeFonts(zip: ZipArchive): Record<string, string> {
   };
 }
 
-function readThemeColors(zip: ZipArchive): Record<string, string> {
+function readThemeColors(zip: OoxmlPackage): Record<string, string> {
   if (!zip.has("word/theme/theme1.xml")) return {};
   const theme = decodeXml(zip, "word/theme/theme1.xml"), scheme = child(child(theme, "themeElements"), "clrScheme");
   const colors: Record<string, string> = {};
@@ -456,7 +457,7 @@ function resolveWordTableStyle(id: string | undefined, styles: Map<string, WordT
   };
 }
 
-function readWordNumbering(zip: ZipArchive, themeFonts: Record<string, string> = {}): Map<string, Map<number, WordNumberingLevel>> {
+function readWordNumbering(zip: OoxmlPackage, themeFonts: Record<string, string> = {}): Map<string, Map<number, WordNumberingLevel>> {
   const result = new Map<string, Map<number, WordNumberingLevel>>();
   if (!zip.has("word/numbering.xml")) return result;
   const root = decodeXml(zip, "word/numbering.xml"), abstract = new Map<string, Map<number, WordNumberingLevel>>();
@@ -626,7 +627,7 @@ function parsePageLayout(body: XmlNode): WordPageLayout | undefined {
   return { width: twipsToPoints(width), height: twipsToPoints(height), marginTop: twipsToPoints(Number(attribute(margins, "top") ?? 1440)), marginRight: twipsToPoints(Number(attribute(margins, "right") ?? 1440)), marginBottom: twipsToPoints(Number(attribute(margins, "bottom") ?? 1440)), marginLeft: twipsToPoints(Number(attribute(margins, "left") ?? 1440)), ...(attribute(margins, "header") !== undefined ? { headerDistance: twipsToPoints(Number(attribute(margins, "header"))) } : {}), ...(attribute(margins, "footer") !== undefined ? { footerDistance: twipsToPoints(Number(attribute(margins, "footer"))) } : {}) };
 }
 
-function readHeaderFooter(zip: ZipArchive, ids: string[], relationships: Map<string, string>, context: WordParseContext): WordBlock[] {
+function readHeaderFooter(zip: OoxmlPackage, ids: string[], relationships: Map<string, string>, context: WordParseContext): WordBlock[] {
   for (const id of ids) {
     const path = relationships.get(id);
     if (path && zip.has(path)) {
@@ -639,15 +640,18 @@ function readHeaderFooter(zip: ZipArchive, ids: string[], relationships: Map<str
   return [];
 }
 
-function readWordImages(zip: ZipArchive, relationships: Map<string, string>): Map<string, { bytes: Uint8Array; mimeType: string }> {
-  const images = new Map<string, { bytes: Uint8Array; mimeType: string }>();
-  const imageTypes: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", bmp: "image/bmp", webp: "image/webp" };
-  for (const [id, path] of relationships) {
-    if (!/^word\/media\//i.test(path) || !zip.has(path)) continue;
-    const extension = path.split(".").pop()?.toLowerCase() ?? "", mimeType = imageTypes[extension];
-    if (mimeType) images.set(id, { bytes: zip.read(path), mimeType });
-  }
-  return images;
+/** Images by relationship id, read only when the document refers to them (each part once, see OoxmlPackage). */
+type WordImages = { get(id: string): { bytes: Uint8Array; mimeType: string } | undefined };
+const wordImageTypes = new Map([["png", "image/png"], ["jpg", "image/jpeg"], ["jpeg", "image/jpeg"], ["gif", "image/gif"], ["bmp", "image/bmp"], ["webp", "image/webp"]]);
+function readWordImages(zip: OoxmlPackage, relationships: Map<string, string>): WordImages {
+  return {
+    get(id) {
+      const path = relationships.get(id);
+      if (!path || !/^word\/media\//i.test(path) || !zip.has(path)) return undefined;
+      const mimeType = wordImageTypes.get(path.split(".").pop()?.toLowerCase() ?? "");
+      return mimeType ? { bytes: zip.read(path), mimeType } : undefined;
+    },
+  };
 }
 
 function descendants(node: XmlNode, name: string): XmlNode[] {
@@ -694,7 +698,7 @@ function formatListNumber(value: number, format: string): string {
 }
 
 export function parsePptx(bytes: Uint8Array, name: string): Presentation {
-  const zip = ZipArchive.open(bytes), presentation = decodeXml(zip, "ppt/presentation.xml");
+  const zip = OoxmlPackage.open(bytes), presentation = decodeXml(zip, "ppt/presentation.xml");
   const relationships = parseRelationships(zip, "ppt/_rels/presentation.xml.rels", "ppt");
   const masterRef = descendants(child(presentation, "sldMasterIdLst") ?? presentation, "sldMasterId")[0];
   const masterRelId = Object.entries(attrs(masterRef)).find(([key]) => key.endsWith(":id"))?.[1];
@@ -717,9 +721,12 @@ export function parsePptx(bytes: Uint8Array, name: string): Presentation {
   const slideHeight = Math.max(1, Number(attribute(slideSize, "cy") ?? "5143500"));
   const slideIds = elements(child(presentation, "sldIdLst") ?? presentation, "sldId");
   const slides: Presentation["slides"] = [];
+  // Each slide part appears once: repeated slide ids for the same part would multiply the work (and are not valid PresentationML).
+  const seenSlides = new Set<string>();
   for (const slideId of slideIds) {
     const relId = Object.entries(attrs(slideId)).find(([key]) => key.endsWith(":id"))?.[1], path = relationships.get(relId ?? "");
-    if (!path || !zip.has(path)) continue;
+    if (!path || !zip.has(path) || seenSlides.has(path)) continue;
+    seenSlides.add(path);
     const slide = decodeXml(zip, path), paragraphs: Paragraph[] = [], elements: PptxElement[] = [];
     const slideRels = parseRelationships(zip, relationshipPart(path), path.slice(0, path.lastIndexOf("/")));
     const layoutPath = [...slideRels.values()].find(target => /^ppt\/slideLayouts\//i.test(target));
@@ -1386,7 +1393,7 @@ function parsePptTable(frame: XmlNode, theme: PptTheme, colorMap: Record<string,
   return { kind: "table", ...box, columns, rows };
 }
 
-function parseRelationships(zip: ZipArchive, path: string, base: string): Map<string, string> {
+function parseRelationships(zip: OoxmlPackage, path: string, base: string): Map<string, string> {
   const result = new Map<string, string>();
   if (!zip.has(path)) return result;
   const root = decodeXml(zip, path);

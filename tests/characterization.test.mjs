@@ -248,7 +248,8 @@ test("M0 ZipArchive default limits and rejections", () => {
   assert.equal(ZipArchive.open(makeZip(Object.fromEntries(Array.from({ length: 4096 }, (_, index) => [`f${index}`, "x"])))).entries.length, 4096);
   assert.throws(() => ZipArchive.open(makeZip(Object.fromEntries(Array.from({ length: 4097 }, (_, index) => [`f${index}`, "x"])))), previewError("resource-limit", /^Invalid or oversized ZIP central directory\.$/));
 
-  const declaredSize = size => { const archive = makeZip({ "big.bin": "x" }); archive.writeUInt32LE(size, centralOffset(archive) + 24); return archive; };
+  // The local header (at offset 0) declares the same size, so the archive is consistent apart from its contents.
+  const declaredSize = size => { const archive = makeZip({ "big.bin": "x" }); archive.writeUInt32LE(size, centralOffset(archive) + 24); archive.writeUInt32LE(size, 22); return archive; };
   assert.equal(ZipArchive.open(declaredSize(32 * 1024 * 1024)).entries[0].uncompressedSize, 32 * 1024 * 1024);
   assert.throws(() => ZipArchive.open(declaredSize(32 * 1024 * 1024 + 1)), previewError("resource-limit", /^ZIP entry exceeds the configured size limit\.$/));
 

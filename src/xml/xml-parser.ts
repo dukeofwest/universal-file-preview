@@ -3,6 +3,8 @@ import { PreviewError } from "../errors.js";
 export type XmlChild = XmlNode | string;
 export interface XmlNode { readonly name: string; readonly localName: string; readonly attributes: Readonly<Record<string, string>>; readonly children: XmlChild[]; }
 const namePattern = /^[A-Za-z_:][A-Za-z0-9_.:\-]*/;
+/** Fixed limits with the same defaults as the namespace-aware XmlTokenizer. */
+const MAX_ATTRIBUTES_PER_ELEMENT = 512, MAX_NAME_LENGTH = 1024;
 
 /** Small non-validating XML 1.0 parser for document package parts. DTDs/entities are deliberately disabled. */
 export function parseXml(source: string, limits: { maxNodes?: number; maxDepth?: number; maxTextLength?: number } = {}): XmlNode {
@@ -13,7 +15,11 @@ export function parseXml(source: string, limits: { maxNodes?: number; maxDepth?:
   let root: XmlNode | undefined;
   const fail = (message: string): never => { throw new PreviewError(`${message} (at character ${at}).`, "parse-error"); };
   const skipSpace = () => { while (/\s/.test(source[at] ?? "")) at++; };
-  const readName = (): string => { const match = namePattern.exec(source.slice(at)); if (!match) return fail("Expected XML name"); at += match[0].length; return match[0]; };
+  const readName = (): string => {
+    const match = namePattern.exec(source.slice(at)); if (!match) return fail("Expected XML name");
+    if (match[0].length > MAX_NAME_LENGTH) throw new PreviewError("XML name exceeds the configured length limit.", "resource-limit");
+    at += match[0].length; return match[0];
+  };
   const appendText = (text: string) => {
     if (!text) return;
     textLength += text.length;
@@ -34,11 +40,12 @@ export function parseXml(source: string, limits: { maxNodes?: number; maxDepth?:
     }
     at++;
     const name = readName(), attributes: Record<string, string> = {};
-    let selfClosing = false, terminated = false;
+    let selfClosing = false, terminated = false, attributeCount = 0;
     while (at < source.length) {
       skipSpace();
       if (source.startsWith("/>", at)) { at += 2; selfClosing = true; terminated = true; break; }
       if (source[at] === ">") { at++; terminated = true; break; }
+      if (++attributeCount > MAX_ATTRIBUTES_PER_ELEMENT) throw new PreviewError("XML element has more attributes than the configured limit.", "resource-limit");
       const attrName = readName(); skipSpace(); if (source[at++] !== "=") fail("Expected '=' after attribute name"); skipSpace();
       const quote = source[at++] as string; if (quote !== "'" && quote !== '"') fail("Attribute value must be quoted");
       const end = source.indexOf(quote, at); if (end < 0) fail("Unclosed attribute value");

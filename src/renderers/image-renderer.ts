@@ -1,6 +1,6 @@
 import { PreviewError } from "../errors.js";
 import type { FileFormat } from "../detection/detect-format.js";
-import { createImageUrl } from "./image-url.js";
+import { createImageUrl, revokeImageUrls } from "./image-url.js";
 import type { FileRenderer, RendererContext, RendererInstance } from "./types.js";
 
 export class ImageRenderer implements FileRenderer {
@@ -22,7 +22,7 @@ export class ImageRenderer implements FileRenderer {
       element: root,
       setZoom(zoom) { image.style.width = `${Math.max(0.1, Math.min(4, zoom)) * 100}%`; },
       fitToWidth() { image.style.width = "100%"; },
-      destroy() { image.onerror = null; image.removeAttribute("src"); if (url) URL.revokeObjectURL(url); },
+      destroy() { image.onerror = null; image.removeAttribute("src"); if (url) revokeImageUrls([url]); },
     };
   }
 }

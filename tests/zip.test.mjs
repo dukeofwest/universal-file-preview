@@ -25,5 +25,6 @@ test("ZIP reader rejects truncated, traversal, and oversized archives", () => {
   const centralOffset = truncated.readUInt32LE(truncated.length - 6);
   const declaredCompressedSize = truncated.readUInt32LE(centralOffset + 20);
   truncated.writeUInt32LE(declaredCompressedSize - 1, centralOffset + 20);
+  truncated.writeUInt32LE(declaredCompressedSize - 1, 18); // the local header agrees, so only the data is truncated
   assert.throws(() => ZipArchive.open(truncated).read("data.txt"), /Truncated DEFLATE|output size/);
 });

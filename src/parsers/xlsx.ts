@@ -1,5 +1,5 @@
 import { PreviewError } from "../errors.js";
-import { ZipArchive } from "../archive/zip-reader.js";
+import { OoxmlPackage } from "../package/ooxml-package.js";
 import { parseXml, elements, firstElement, textContent, type XmlNode } from "../xml/xml-parser.js";
 import type { SpreadsheetAnchor, SpreadsheetBorderEdge, SpreadsheetBorders, SpreadsheetCell, SpreadsheetConditional, SpreadsheetDrawing, SpreadsheetFill, SpreadsheetFont, SpreadsheetRange, SpreadsheetRow, SpreadsheetRun, SpreadsheetSlicer, SpreadsheetSlicerStyle, SpreadsheetSparkline, SpreadsheetStyle, SpreadsheetTable, Workbook, Worksheet } from "../model.js";
 import { builtinNumberFormat, dateToSerial, formatValue, indexedColors as numberFormatColors, type FormattedValue } from "./xlsx-number-format.js";
@@ -10,13 +10,35 @@ import { tiffToPng } from "./tiff.js";
 
 export type XlsxParseOptions = { locale?: string; today?: number };
 
-const decodeXml = (archive: ZipArchive, path: string): XmlNode => parseXml(new TextDecoder("utf-8", { fatal: true }).decode(archive.read(path)));
+/** Parsed once per part and shared (OoxmlPackage caches parts and enforces the total decompression budget). */
+const decodeXml = (archive: OoxmlPackage, path: string): XmlNode => archive.xml(path);
 const child = (node: XmlNode | undefined, name: string) => node ? firstElement(node, name) : undefined;
 const attr = (node: XmlNode | undefined, name: string): string | undefined => node ? node.attributes[name] ?? Object.entries(node.attributes).find(([key]) => key.endsWith(`:${name}`))?.[1] : undefined;
 const flag = (node: XmlNode | undefined, name: string, fallback = false): boolean => { const value = attr(node, name); return value === undefined ? fallback : value === "1" || value === "true"; };
 /** OOXML boolean elements such as <b/> or <b val="0"/>. */
 const on = (node: XmlNode | undefined): boolean | undefined => node ? !/^(0|false|none)$/i.test(attr(node, "val") ?? "1") : undefined;
-const MAX_CF_CELLS = 250_000;
+/** Cells covered by conditional formats, across the whole workbook (rules are applied in sheet order until it is spent). */
+const MAX_CF_CELLS = 1_000_000;
+const MAX_SHEETS = 1024;
+/** Parsed worksheet cells across the whole workbook, as for OpenDocument spreadsheets. */
+const MAX_WORKBOOK_CELLS = 1_000_000;
+/**
+ * Work limits for one workbook. Formula evaluation (uncached formulas, conditional formats and
+ * sparkline sources) is charged one unit per cell it reads and FORMULA_EVALUATION_COST per evaluation; once the budget is spent, remaining
+ * formulas stay uncalculated and the affected conditional formats and sparklines are left out,
+ * so a small crafted file cannot keep the page busy for minutes.
+ */
+const MAX_FORMULA_CELL_READS = 20_000_000;
+/** Units charged per formula evaluation (one evaluation costs about as much as 40 cell reads), so long dependency chains also reach the limit. */
+const FORMULA_EVALUATION_COST = 40;
+/** Nesting depth of formulas that depend on other uncached formulas. */
+const MAX_FORMULA_DEPTH = 200;
+/** Workbook-wide limits for per-sheet features that a file could otherwise repeat on every sheet, table or slicer. */
+/** Slicer work is counted per table row read, plus one per other filtered column checked for that row. */
+const MAX_HYPERLINK_CELLS = 1_000_000, MAX_FILTER_COLUMNS = 100_000, MAX_SLICER_WORK = 2_000_000;
+type Remaining = { hyperlinkCells: number; filterColumns: number; slicerWork: number };
+/** Thrown inside formula evaluation when a work limit is reached; caught where evaluation starts. */
+class WorkLimitReached extends Error {}
 
 type Relationship = { target: string; type: string; external: boolean };
 type Theme = { colors: string[]; majorFont?: string; minorFont?: string };
@@ -28,7 +50,7 @@ type PendingSlicer = { drawing: SpreadsheetSlicer; cache: string };
 
 export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOptions = {}): Workbook {
   const locale = options.locale ?? "en-US";
-  const zip = ZipArchive.open(bytes), workbook = decodeXml(zip, "xl/workbook.xml");
+  const zip = OoxmlPackage.open(bytes), workbook = decodeXml(zip, "xl/workbook.xml");
   const relationships = readRelationships(zip, "xl/workbook.xml");
   const themePath = [...relationships.values()].find(rel => rel.type.endsWith("/theme"))?.target ?? "xl/theme/theme1.xml";
   const themeRoot = zip.has(themePath) ? decodeXml(zip, themePath) : undefined, theme = readTheme(themeRoot);
@@ -46,15 +68,22 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   const sheetNodes = elements(child(workbook, "sheets") ?? workbook, "sheet");
   type Parsed = { sheet: Worksheet; values: Map<number, CellValue>; formulas: Map<number, { formula: string; origin: { row: number; column: number } }>; root: XmlNode; path: string; index: number };
   const parsed: Parsed[] = [];
+  // Each worksheet part is read once (a repeated target would multiply the work), and at most MAX_SHEETS sheets, as for OpenDocument.
+  if (sheetNodes.length > MAX_SHEETS) throw new PreviewError(`XLSX workbook has more than ${MAX_SHEETS} sheets.`, "resource-limit");
+  const seenSheets = new Set<string>();
+  let cellCount = 0;
   sheetNodes.forEach((sheetNode, index) => {
     const sheetName = attr(sheetNode, "name") ?? `Sheet ${index + 1}`;
     const relId = Object.entries(sheetNode.attributes).find(([key]) => key.endsWith(":id"))?.[1];
     const rel = relationships.get(relId ?? "");
-    if (!rel || rel.external || !zip.has(rel.target)) return;
+    if (!rel || rel.external || !zip.has(rel.target) || seenSheets.has(rel.target)) return;
+    seenSheets.add(rel.target);
     const root = decodeXml(zip, rel.target);
     if (root.localName !== "worksheet") return;
     const state = attr(sheetNode, "state");
     const { sheet, values, formulas } = readWorksheet(root, sheetName, shared, color, formatFor, locale, date1904);
+    // Each sheet is already bounded by the XML element limit; this bounds the workbook (one sheet past the limit at most is parsed).
+    if ((cellCount += sheet.cells.length) > MAX_WORKBOOK_CELLS) throw new PreviewError(`XLSX workbook has more than ${MAX_WORKBOOK_CELLS.toLocaleString("en-US")} cells.`, "resource-limit");
     if (state === "hidden" || state === "veryHidden") sheet.hidden = true;
     parsed.push({ sheet, values, formulas, root, path: rel.target, index });
   });
@@ -63,7 +92,9 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   // Formula context spanning all sheets, so conditional formats and uncached formulas can reference any sheet.
   const bySheet = new Map(parsed.map(entry => [entry.sheet.name.toLowerCase(), entry]));
   const evaluating = new Set<string>();
+  let cellReads = 0;
   const cellValue = (sheetName: string, row: number, column: number): CellValue => {
+    if (++cellReads > MAX_FORMULA_CELL_READS) throw new WorkLimitReached();
     const entry = bySheet.get(sheetName.toLowerCase());
     if (!entry) return new FormulaError("#REF!");
     const key = row * 16_384 + column;
@@ -73,9 +104,10 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
     if (!pending) return null;
     const guard = `${sheetName}!${key}`;
     if (evaluating.has(guard)) return new FormulaError("#REF!");
+    if (evaluating.size >= MAX_FORMULA_DEPTH || (cellReads += FORMULA_EVALUATION_COST) > MAX_FORMULA_CELL_READS) throw new WorkLimitReached();
     evaluating.add(guard);
-    const result = evaluateFormula(pending.formula, contextFor(sheetName, row, column), pending.origin);
-    evaluating.delete(guard);
+    let result;
+    try { result = evaluateFormula(pending.formula, contextFor(sheetName, row, column), pending.origin); } finally { evaluating.delete(guard); }
     const scalar = typeof result === "object" && result !== null && !(result instanceof FormulaError) ? new FormulaError("#VALUE!") : result as CellValue;
     entry.values.set(key, scalar ?? 0);
     return scalar ?? 0;
@@ -93,7 +125,8 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
     const cellsByRef = entry.formulas.size ? new Map(entry.sheet.cells.map(cell => [cell.ref.toUpperCase(), cell])) : undefined;
     for (const key of entry.formulas.keys()) {
       const row = Math.floor(key / 16_384), column = key % 16_384;
-      const value = cellValue(entry.sheet.name, row, column);
+      let value: CellValue;
+      try { value = cellValue(entry.sheet.name, row, column); } catch (error) { if (error instanceof WorkLimitReached) continue; throw error; }
       const cell = cellsByRef?.get(`${columnName(column)}${row}`);
       if (!cell || value === null || value instanceof FormulaError && value.code === "#NAME?") continue;
       const formatted = displayFor(value, formatFor(cell.style), locale, date1904);
@@ -102,16 +135,23 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
       applyDisplay(cell, formatted);
     }
   }
-  const tablesById = new Map<number, TableInfo>(), pendingSlicers: PendingSlicer[] = [];
+  const tablesById = new Map<number, TableInfo>(), pendingSlicers: PendingSlicer[] = [], remaining: Remaining = { hyperlinkCells: MAX_HYPERLINK_CELLS, filterColumns: MAX_FILTER_COLUMNS, slicerWork: MAX_SLICER_WORK }, formattedCells = { remaining: MAX_CF_CELLS };
+  /** Context for a conditional-format formula; every evaluation is charged like an uncached formula. */
+  const ruleContext = (sheetName: string, row: number, column: number): FormulaContext => {
+    if ((cellReads += FORMULA_EVALUATION_COST) > MAX_FORMULA_CELL_READS) throw new WorkLimitReached();
+    return contextFor(sheetName, row, column);
+  };
+  /** Runs formula-dependent work; when a work limit is reached the feature is left out instead of failing the preview. */
+  const withinLimits = <T>(work: () => T, fallback: T): T => { try { return work(); } catch (error) { if (error instanceof WorkLimitReached) return fallback; throw error; } };
   for (const entry of parsed) {
     const rels = readRelationships(zip, entry.path);
-    readSheetExtras(zip, entry.root, entry.sheet, rels, styles, theme, themeRoot, tablesById, pendingSlicers);
-    const conditional = evaluateConditionalFormats(entry.root, entry.sheet, styles, theme, palette, (row, column) => cellValue(entry.sheet.name, row, column), (row, column) => contextFor(entry.sheet.name, row, column), locale, date1904);
+    readSheetExtras(zip, entry.root, entry.sheet, rels, styles, theme, themeRoot, tablesById, pendingSlicers, remaining);
+    const conditional = withinLimits(() => evaluateConditionalFormats(entry.root, entry.sheet, styles, theme, palette, (row, column) => cellValue(entry.sheet.name, row, column), (row, column) => ruleContext(entry.sheet.name, row, column), locale, date1904, formattedCells), {});
     if (Object.keys(conditional).length) entry.sheet.conditional = conditional;
-    const sparklines = readSparklines(entry.root, entry.sheet.name, cellValue, theme, palette);
+    const sparklines = withinLimits(() => readSparklines(entry.root, entry.sheet.name, cellValue, theme, palette), []);
     if (sparklines.length) entry.sheet.sparklines = sparklines;
   }
-  if (pendingSlicers.length) resolveSlicers(zip, workbook, relationships, pendingSlicers, tablesById, locale);
+  if (pendingSlicers.length) resolveSlicers(zip, workbook, relationships, pendingSlicers, tablesById, locale, remaining);
 
   const view = child(child(workbook, "bookViews"), "workbookView");
   const activeTab = Number(attr(view, "activeTab") ?? 0);
@@ -220,7 +260,7 @@ function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string
   return { sheet, values, formulas };
 }
 
-function readSheetExtras(zip: ZipArchive, root: XmlNode, sheet: Worksheet, rels: Map<string, Relationship>, styles: StyleSheet, theme: Theme, themeRoot: XmlNode | undefined, tablesById: Map<number, TableInfo>, pendingSlicers: PendingSlicer[]): void {
+function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rels: Map<string, Relationship>, styles: StyleSheet, theme: Theme, themeRoot: XmlNode | undefined, tablesById: Map<number, TableInfo>, pendingSlicers: PendingSlicer[], remaining: Remaining): void {
   const relFor = (node: XmlNode | undefined) => rels.get(Object.entries(node?.attributes ?? {}).find(([key]) => key.endsWith(":id"))?.[1] ?? "");
   // Hyperlinks: only web and mail targets become clickable.
   const hyperlinks: Record<string, string> = {};
@@ -228,7 +268,8 @@ function readSheetExtras(zip: ZipArchive, root: XmlNode, sheet: Worksheet, rels:
     const ref = attr(link, "ref"), rel = relFor(link), target = rel?.target;
     if (!ref || !target || !/^(https?:|mailto:)/i.test(target)) continue;
     const range = parseRange(ref);
-    if (range) for (let row = range.top; row <= Math.min(range.bottom, range.top + 1000); row++) for (let column = range.left; column <= Math.min(range.right, range.left + 100); column++) hyperlinks[`${columnName(column)}${row}`] = target;
+    // Ranges cover at most 1,001 x 101 cells each and MAX_HYPERLINK_CELLS across the workbook; further links are not expanded.
+    if (range) for (let row = range.top; row <= Math.min(range.bottom, range.top + 1000) && remaining.hyperlinkCells > 0; row++) for (let column = range.left; column <= Math.min(range.right, range.left + 100) && remaining.hyperlinkCells > 0; column++) { hyperlinks[`${columnName(column)}${row}`] = target; remaining.hyperlinkCells--; }
   }
   if (Object.keys(hyperlinks).length) sheet.hyperlinks = hyperlinks;
   // Notes: Excel marks commented cells with a red corner triangle.
@@ -252,7 +293,7 @@ function readSheetExtras(zip: ZipArchive, root: XmlNode, sheet: Worksheet, rels:
   // Filter columns can hide their drop-down button (hiddenButton, or showButton="0").
   const addFilterButtons = (filter: XmlNode | undefined, range: SpreadsheetRange) => {
     const hidden = new Set((filter ? elements(filter, "filterColumn") : []).filter(column => flag(column, "hiddenButton") || !flag(column, "showButton", true)).map(column => Number(attr(column, "colId"))));
-    for (let column = range.left; column <= range.right; column++) if (!hidden.has(column - range.left)) filterButtons.add(`${columnName(column)}${range.top}`);
+    for (let column = range.left; column <= range.right && remaining.filterColumns > 0; column++, remaining.filterColumns--) if (!hidden.has(column - range.left)) filterButtons.add(`${columnName(column)}${range.top}`);
   };
   const sheetFilter = parseRange(attr(child(root, "autoFilter"), "ref") ?? "");
   if (sheetFilter) addFilterButtons(child(root, "autoFilter"), sheetFilter);
@@ -352,7 +393,7 @@ function builtinSlicerStyle(name: string, theme: Theme): SpreadsheetSlicerStyle 
 }
 
 /** Fills slicer buttons from their caches: table slicers read the table column (selection from its filter), pivot slicers the pivot cache items. */
-function resolveSlicers(zip: ZipArchive, workbook: XmlNode, relationships: Map<string, Relationship>, pending: PendingSlicer[], tables: Map<number, TableInfo>, locale: string): void {
+function resolveSlicers(zip: OoxmlPackage, workbook: XmlNode, relationships: Map<string, Relationship>, pending: PendingSlicer[], tables: Map<number, TableInfo>, locale: string, remaining: Remaining): void {
   const caches = new Map<string, XmlNode>();
   for (const rel of relationships.values()) if (!rel.external && rel.type.endsWith("/slicerCache") && zip.has(rel.target)) { const node = decodeXml(zip, rel.target); caches.set(attr(node, "name") ?? "", node); }
   const pivotCaches = new Map<string, string>();
@@ -377,10 +418,14 @@ function resolveSlicers(zip: ZipArchive, workbook: XmlNode, relationships: Map<s
       const textAt = (row: number, column: number) => { const cell = cells.get(`${columnName(column)}${row}`); return cell ? (cell.display ?? cell.value) : ""; };
       const passes = (filter: { values: Set<string>; blank: boolean } | undefined, text: string) => !filter || (text === "" ? filter.blank : filter.values.has(text.toLowerCase()));
       const own = table.filters.get(columnIndex), byText = new Map<string, Item>();
-      for (let row = table.range.top + table.headerRows; row <= table.range.bottom - table.totalsRows; row++) {
+      // The other columns' filters decide whether a row has data; each check is charged to the slicer budget.
+      const otherFilters = [...table.filters].filter(([index]) => index !== columnIndex), rowCost = 1 + otherFilters.length;
+      // Rows below the sheet's last used row are all blank and give the same item, so one of them stands for all.
+      const lastRow = Math.min(table.range.bottom - table.totalsRows, table.sheet.maxRow + 1);
+      for (let row = table.range.top + table.headerRows; row <= lastRow && remaining.slicerWork >= rowCost; row++, remaining.slicerWork -= rowCost) {
         const text = textAt(row, table.range.left + columnIndex), key = text.toLowerCase();
         // An item has data when its row survives the filters of the table's other columns.
-        const visible = [...table.filters].every(([index, filter]) => index === columnIndex || passes(filter, textAt(row, table.range.left + index)));
+        const visible = otherFilters.every(([index, filter]) => passes(filter, textAt(row, table.range.left + index)));
         const raw = cells.get(`${columnName(table.range.left + columnIndex)}${row}`), number = raw && raw.type !== "s" && raw.type !== "str" && raw.value.trim() !== "" ? Number(raw.value) : NaN;
         const item = byText.get(key) ?? { text: text === "" ? "(blank)" : text, ...(Number.isFinite(number) ? { number } : {}), selected: passes(own, text), hasData: false };
         item.hasData ||= visible;
@@ -413,7 +458,7 @@ function resolveSlicers(zip: ZipArchive, workbook: XmlNode, relationships: Map<s
 }
 
 /** Evaluates conditional formatting into per-cell overlays (Excel applies all matching rules; higher priority wins per property). */
-function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: StyleSheet, theme: Theme, palette: string[], value: (row: number, column: number) => CellValue, context: (row: number, column: number) => FormulaContext, locale: string, date1904: boolean): Record<string, SpreadsheetConditional> {
+function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: StyleSheet, theme: Theme, palette: string[], value: (row: number, column: number) => CellValue, context: (row: number, column: number) => FormulaContext, locale: string, date1904: boolean, formattedCells: { remaining: number }): Record<string, SpreadsheetConditional> {
   type Rule = { node: XmlNode; ranges: SpreadsheetRange[]; priority: number; dxf?: SpreadsheetStyle; ext?: XmlNode; formulas: string[] };
   const rules: Rule[] = [];
   const extById = new Map<string, XmlNode>(), extRules: Rule[] = [];
@@ -442,13 +487,13 @@ function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: Sty
   rules.sort((a, b) => a.priority - b.priority);
   const limitRow = sheet.maxRow + 60, limitColumn = sheet.maxColumn + 30;
   const result: Record<string, SpreadsheetConditional> = {}, stopped = new Set<string>();
-  let budget = MAX_CF_CELLS;
   const color = (node: XmlNode | undefined) => readColor(node, theme, palette);
   for (const rule of rules) {
     const type = attr(rule.node, "type") ?? "";
     const cells: Array<{ row: number; column: number }> = [];
-    for (const range of rule.ranges) for (let row = range.top; row <= Math.min(range.bottom, limitRow); row++) for (let column = range.left; column <= Math.min(range.right, limitColumn); column++) {
-      if (--budget < 0) break;
+    // The cell budget is shared by every sheet of the workbook; once it is spent, no further cells are collected.
+    for (const range of rule.ranges) for (let row = range.top; row <= Math.min(range.bottom, limitRow) && formattedCells.remaining > 0; row++) for (let column = range.left; column <= Math.min(range.right, limitColumn) && formattedCells.remaining > 0; column++) {
+      formattedCells.remaining--;
       cells.push({ row, column });
     }
     if (!cells.length) continue;
@@ -602,7 +647,7 @@ function evaluateConditionalFormats(root: XmlNode, sheet: Worksheet, styles: Sty
     else continue;
     cells.forEach((cell, index) => {
       try { if (matcher(values[index]!, cell.row, cell.column)) applyDxf(cell.row, cell.column); }
-      catch { /* malformed rule: ignore for this cell */ }
+      catch (error) { if (error instanceof WorkLimitReached) throw error; /* malformed rule: ignore for this cell */ }
     });
   }
   return result;
@@ -920,14 +965,14 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 // ---------------------------------------------------------------------------------------------------------------------
 // Drawings
 
-function readDrawings(zip: ZipArchive, path: string, themeRoot: XmlNode | undefined): SpreadsheetDrawing[] {
+function readDrawings(zip: OoxmlPackage, path: string, themeRoot: XmlNode | undefined): SpreadsheetDrawing[] {
   const root = decodeXml(zip, path), rels = readRelationships(zip, path), drawings: SpreadsheetDrawing[] = [];
   const marker = (node: XmlNode | undefined) => node ? { column: Number(textContent(child(node, "col") ?? node)) || 0, row: Number(textContent(child(node, "row") ?? node)) || 0, columnOffset: Number(textContent(child(node, "colOff") ?? node)) || 0, rowOffset: Number(textContent(child(node, "rowOff") ?? node)) || 0 } : undefined;
   const image = (embed: string) => {
     const rel = rels.get(embed);
     if (!rel || rel.external || !zip.has(rel.target)) return undefined;
     // Browsers cannot show TIFF; convert it to PNG.
-    if (/\.tiff?$/i.test(rel.target)) { const png = tiffToPng(zip.read(rel.target)); return png ? { bytes: png, mimeType: "image/png" } : undefined; }
+    if (/\.tiff?$/i.test(rel.target)) { const png = zip.derived(`tiff-png:${rel.target}`, () => tiffToPng(zip.read(rel.target))); return png ? { bytes: png, mimeType: "image/png" } : undefined; }
     const mimeType = imageMimeType(rel.target);
     return mimeType ? { bytes: zip.read(rel.target), mimeType } : undefined;
   };
@@ -975,7 +1020,7 @@ function imageMimeType(path: string): string | undefined {
 // ---------------------------------------------------------------------------------------------------------------------
 // Package helpers
 
-function readRelationships(zip: ZipArchive, partPath: string): Map<string, Relationship> {
+function readRelationships(zip: OoxmlPackage, partPath: string): Map<string, Relationship> {
   const directory = partPath.slice(0, partPath.lastIndexOf("/")), file = partPath.slice(partPath.lastIndexOf("/") + 1);
   const relsPath = `${directory}/_rels/${file}.rels`, result = new Map<string, Relationship>();
   if (!zip.has(relsPath)) return result;

@@ -91,6 +91,18 @@ const bigRows = Array.from({ length: 200 }, (_, row) => `<row r="${row + 1}">${A
 const viewFiles = {
   "tooltip.xlsx": workbook(`<sheetViews><sheetView workbookViewId="0"><pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><sheetData>${bigRows}</sheetData><dataValidations count="1"><dataValidation type="none" allowBlank="1" showInputMessage="1" promptTitle="Input" prompt="An input message long enough to need several lines of text in the box." sqref="A1:AN200"/></dataValidations>`),
   "scroll.xlsx": workbook(`<sheetData>${Array.from({ length: 400 }, (_, index) => `<row r="${index + 1}"><c r="A${index + 1}"><v>${index + 1}</v></c></row>`).join("")}</sheetData>`),
+  // Renderer work limits: thousands of overlapping full-size merges and whole-sheet column ranges.
+  "limits.xlsx": workbook(`<cols>${'<col min="1" max="16384" width="9"/>'.repeat(20_000)}</cols><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>limits</t></is></c></row></sheetData><mergeCells count="5000">${'<mergeCell ref="A1:SF5001"/>'.repeat(5000)}</mergeCells>`),
+  // A sheet image whose blob URL must be released when the grid re-renders.
+  "image.xlsx": makeZip({
+    "xl/workbook.xml": `<workbook ${S}><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    "xl/_rels/workbook.xml.rels": '<Relationships><Relationship Id="rId1" Type="x/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+    "xl/worksheets/sheet1.xml": `<worksheet ${S}><sheetData>${Array.from({ length: 300 }, (_, index) => `<row r="${index + 1}"><c r="A${index + 1}"><v>${index}</v></c></row>`).join("")}</sheetData><drawing r:id="rIdDraw"/></worksheet>`,
+    "xl/worksheets/_rels/sheet1.xml.rels": '<Relationships><Relationship Id="rIdDraw" Type="x/drawing" Target="../drawings/drawing1.xml"/></Relationships>',
+    "xl/drawings/drawing1.xml": '<xdr:wsDr xmlns:xdr="urn:xdr" xmlns:a="urn:a" xmlns:r="urn:r"><xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:pic><xdr:blipFill><a:blip r:embed="rIdImg"/></xdr:blipFill></xdr:pic></xdr:twoCellAnchor></xdr:wsDr>',
+    "xl/drawings/_rels/drawing1.xml.rels": '<Relationships><Relationship Id="rIdImg" Type="x/image" Target="../media/image1.png"/></Relationships>',
+    "xl/media/image1.png": Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64"),
+  }),
   "scroll.docx": makeZip({ "word/document.xml": `<w:document xmlns:w="urn:w"><w:body>${Array.from({ length: 200 }, (_, index) => `<w:p><w:r><w:t>Paragraph ${index + 1}</w:t></w:r></w:p>`).join("")}</w:body></w:document>` }),
 };
 // The policy recommended in docs/security.md ("Deployment for untrusted files"); keep the two in sync.
@@ -208,6 +220,19 @@ window.scrolling = async () => {
   await show("scroll.docx");
   const content = host.querySelector(".ufp-content"); content.scrollTop = 500;
   return { gridTop, lateRow, contentTop: content.scrollTop, contentScrollable: content.scrollHeight > content.clientHeight };
+};
+window.rendererLimits = async () => {
+  const started = performance.now(), error = await show("limits.xlsx");
+  return { error, ms: Math.round(performance.now() - started - 600), cells: host.querySelectorAll(".ufp-grid-cell").length };
+};
+window.imageRelease = async () => {
+  await show("image.xlsx");
+  const grid = host.querySelector(".ufp-grid-scroll"), first = host.querySelector(".ufp-sheet-image")?.src;
+  grid.scrollTop = 4000; grid.dispatchEvent(new Event("scroll")); await new Promise(done => setTimeout(done, 400));
+  grid.scrollTop = 0; grid.dispatchEvent(new Event("scroll")); await new Promise(done => setTimeout(done, 400));
+  const second = host.querySelector(".ufp-sheet-image")?.src;
+  let revoked = false; try { await fetch(first); } catch { revoked = true; }
+  return { first: !!first, second: !!second, rerendered: first !== second, revoked };
 };
 window.liveness = async () => { await fetch(ATTACKER + "/liveness-page", { mode: "no-cors" }); return true; };
 window.pwned = () => localStorage.getItem("ufp-pwned");
@@ -462,6 +487,18 @@ async function run() {
     checkExceptions();
     record(scroll);
     console.log(`  ${failures.length === before ? "ok  " : "FAIL"} scrolling: grid scrollTop ${scroll.gridTop}, later rows rendered ${scroll.lateRow}; document scrollTop ${scroll.contentTop}`);
+  }
+
+  step = "renderer limits";
+  {
+    const before = failures.length, limits = await evaluate(mainTab.sessionId, "window.rendererLimits()"), images = await evaluate(mainTab.sessionId, "window.imageRelease()");
+    check(!limits.error && limits.cells > 0, `the crafted sheet did not render (${limits.error ?? "no cells"})`);
+    check(limits.ms < 5000, `5,000 overlapping merges and 20,000 column ranges took ${limits.ms} ms`);
+    check(images.first && images.second && images.rerendered, `the sheet image was not re-rendered (${JSON.stringify(images)})`);
+    check(images.revoked, "the previous image blob URL is still alive after the grid re-rendered");
+    checkExceptions();
+    record({ limits, images });
+    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} renderer limits: crafted merges and columns rendered in ${limits.ms} ms; previous image URL revoked on re-render: ${images.revoked}`);
   }
 
   step = "csp";
