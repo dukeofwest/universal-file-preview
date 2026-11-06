@@ -124,6 +124,8 @@ const viewFiles = {
 // fallback <style> element of browsers without constructable stylesheets (styleNonce).
 const CSP = "default-src 'self'; script-src 'self'; img-src 'self' blob: data:; style-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'";
 const STYLE_NONCE = "ufp-csp-nonce-test";
+// The recommended policy with Trusted Types enforced and no policy allowed: the viewer must use no markup sink.
+const CSP_TRUSTED_TYPES = `${CSP}; require-trusted-types-for 'script'; trusted-types 'none'`;
 const CSP_NONCE = CSP.replace("style-src 'self'", `style-src 'self' 'nonce-${STYLE_NONCE}'`);
 const cspFiles = Object.fromEntries(ooxmlFixtures.filter(fixture => fixture.options === undefined).map(fixture => [`${fixture.id}.${fixture.kind}`, buildFixture(fixture)]));
 // Pattern fills are drawn with data: SVG backgrounds, which img-src must allow.
@@ -178,6 +180,52 @@ window.controlSvgBlob = async () => URL.createObjectURL(new Blob([await (await f
 window.sanitizeAll = async (cases) => {
   const { sanitizeSvg } = await import("/dist/renderers/image-url.js");
   return cases.map(entry => { try { return { name: entry.name, output: new TextDecoder().decode(sanitizeSvg(new TextEncoder().encode(entry.svg))) }; } catch (e) { return { name: entry.name, error: String(e?.message ?? e) }; } });
+};
+/** Old (0.2.x, DOMParser) and new (DOM-free) sanitizer on the same input: normalized trees and rendered pixels. */
+window.svgDifferential = async (cases) => {
+  const { sanitizeSvg } = await import("/dist/renderers/image-url.js");
+  const { referenceSanitizeSvg } = await import("/reference-sanitizer.js");
+  const run = (sanitizer, svg) => { try { return { output: new TextDecoder().decode(sanitizer(new TextEncoder().encode(svg))) }; } catch (e) { return { error: String(e?.message ?? e) }; } };
+  // Namespace and local name, attributes sorted (namespace declarations left out), adjacent text merged.
+  const canonical = source => {
+    const walk = node => {
+      const children = []; let run = "";
+      for (const child of node.childNodes) {
+        if (child.nodeType === 3) { run += child.data; continue; }
+        if (run) { children.push(run); run = ""; }
+        children.push(child.nodeType === 1 ? walk(child) : "#node" + child.nodeType);
+      }
+      if (run) children.push(run);
+      const attributes = [...node.attributes].filter(a => a.namespaceURI !== "http://www.w3.org/2000/xmlns/").map(a => [a.namespaceURI, a.localName, a.value]).sort((a, b) => (a[1] + " " + a[0]).localeCompare(b[1] + " " + b[0]));
+      return [node.namespaceURI, node.localName, attributes, children];
+    };
+    return JSON.stringify(walk(new DOMParser().parseFromString(source, "image/svg+xml").documentElement));
+  };
+  const pixels = async source => {
+    const url = URL.createObjectURL(new Blob([source], { type: "image/svg+xml" }));
+    try {
+      const image = new Image();
+      await new Promise(done => { image.onload = image.onerror = done; image.src = url; });
+      if (!image.naturalWidth) return "not drawn";
+      const canvas = document.createElement("canvas"); canvas.width = 160; canvas.height = 160;
+      const context = canvas.getContext("2d"); context.drawImage(image, 0, 0, 160, 160);
+      const data = context.getImageData(0, 0, 160, 160).data; let hash = 0, ink = 0;
+      for (let i = 0; i < data.length; i++) { hash = (Math.imul(hash, 31) + data[i]) | 0; if (i % 4 === 3 && data[i]) ink++; }
+      return hash + "/" + ink;
+    } finally { URL.revokeObjectURL(url); }
+  };
+  const results = [];
+  for (const entry of cases) {
+    const before = run(referenceSanitizeSvg, entry.svg), after = run(sanitizeSvg, entry.svg);
+    const result = { name: entry.name, oldError: before.error, newError: after.error, oldOutput: before.output, newOutput: after.output };
+    if (before.output && after.output) {
+      const [oldTree, newTree] = [canonical(before.output), canonical(after.output)];
+      const [oldPixels, newPixels] = [await pixels(before.output), await pixels(after.output)];
+      Object.assign(result, { sameTree: oldTree === newTree, samePixels: oldPixels === newPixels, pixels: newPixels, ...(oldTree === newTree ? {} : { oldTree, newTree }) });
+    }
+    results.push(result);
+  }
+  return results;
 };
 window.svgUrl = (text) => URL.createObjectURL(new Blob([text], { type: "image/svg+xml" }));
 window.loadImage = (url) => new Promise(done => { const image = new Image(); image.onload = () => { done({ ok: true, width: image.naturalWidth }); image.remove(); }; image.onerror = () => { done({ ok: false }); image.remove(); }; image.src = url; document.body.append(image); });
@@ -330,6 +378,8 @@ const server = createServer(async (request, response) => {
   if (url.pathname === "/") { response.writeHead(200, { "content-type": "text/html" }); return response.end(page); }
   // No style attribute in the page: the policy blocks inline styles; the test script sizes the host through CSSOM.
   if (url.pathname === "/csp.html" || url.pathname === "/csp-nonce.html") { response.writeHead(200, { "content-type": "text/html", "content-security-policy": url.pathname === "/csp.html" ? CSP : CSP_NONCE }); return response.end('<!doctype html><meta charset="utf-8"><div id="host"></div><script type="module" src="/csp-test.js"></script>'); }
+  if (url.pathname === "/reference-sanitizer.js") { response.writeHead(200, { "content-type": "text/javascript" }); return response.end(await readFile(join(root, "tests", "helpers", "svg-sanitizer-reference.mjs"))); }
+  if (url.pathname === "/csp-tt.html") { response.writeHead(200, { "content-type": "text/html", "content-security-policy": CSP_TRUSTED_TYPES }); return response.end('<!doctype html><meta charset="utf-8"><div id="host"></div><script type="module" src="/csp-test.js"></script>'); }
   if (url.pathname === "/csp-test.js") { response.writeHead(200, { "content-type": "text/javascript" }); return response.end(cspScript); }
   if (url.pathname === "/control.svg") { response.writeHead(200, { "content-type": "text/plain" }); return response.end(evilSvg(ATTACKER)); }
   if (url.pathname === "/liveness") { response.writeHead(200); return response.end("ok"); }
@@ -506,6 +556,35 @@ async function run() {
     console.log(`  ${failures.length === before ? "ok  " : "FAIL"} svg sanitizer: ${svgCases.length} cases (${rows.filter(row => row.rejected).length} rejected as invalid)`);
   }
 
+  step = "svg differential";
+  {
+    // Every sanitizer case, the SVG embedded in the media fixtures and the demo illustration, through the 0.2.x
+    // DOMParser sanitizer and the DOM-free one: inputs with a DOCTYPE must now be refused (approved change);
+    // every other input must be accepted or refused by both, with the same tree and the same pixels.
+    const before = failures.length;
+    const { writeDemoSamples } = await import(pathToFileURL(join(root, "scripts", "demo-samples.mjs")));
+    const { mkdtemp, rm } = await import("node:fs/promises"), { tmpdir } = await import("node:os");
+    const demo = await mkdtemp(join(tmpdir(), "ufp-svg-demo-"));
+    let illustration;
+    try { await writeDemoSamples(demo); illustration = await readFile(join(demo, "sample-illustration.svg"), "utf8"); } finally { await rm(demo, { recursive: true, force: true }); }
+    const inputs = [...svgCases.map(entry => ({ name: entry.name, svg: entry.svg })), { name: "embedded media SVG (evilSvg)", svg: evilSvg(ATTACKER) }, { name: "demo sample-illustration.svg", svg: illustration }];
+    const results = await evaluate(mainTab.sessionId, `window.svgDifferential(${JSON.stringify(inputs)})`);
+    let identical = 0, refusedByBoth = 0, doctypes = 0;
+    for (const [index, result] of results.entries()) {
+      if (/<!DOCTYPE/i.test(inputs[index].svg)) { doctypes++; check(!!result.newError, `${result.name}: an SVG with a DOCTYPE was not refused`); continue; }
+      check(!!result.oldError === !!result.newError, `${result.name}: old sanitizer ${result.oldError ? "refused" : "accepted"}, new sanitizer ${result.newError ? "refused (" + result.newError + ")" : "accepted"}`);
+      if (result.oldError && result.newError) { refusedByBoth++; continue; }
+      if (result.oldError || result.newError) continue;
+      check(result.sameTree, `${result.name}: the sanitized trees differ:\n  old ${result.oldTree}\n  new ${result.newTree}`);
+      check(result.samePixels, `${result.name}: the sanitized images render differently`);
+      check(!unsafeSvg.test(result.newOutput), `${result.name}: new output contains active or external content: ${result.newOutput}`);
+      if (result.sameTree && result.samePixels) identical++;
+    }
+    checkExceptions();
+    record({ results: results.map(({ oldOutput, ...rest }) => rest) });
+    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} svg differential: ${inputs.length} inputs; ${identical} with identical trees and pixels, ${refusedByBoth} refused by both, ${doctypes} with a DOCTYPE now refused`);
+  }
+
   step = "containment";
   {
     const before = failures.length, contained = await evaluate(mainTab.sessionId, "window.containment()");
@@ -590,13 +669,9 @@ async function run() {
       if (refusedFiles.has(result.name)) check(!!result.error, `${result.name} should be refused`);
       else check(!result.error && result.rendered, `${result.name} did not render (${result.error ?? "empty"})`);
       check(result.styled && result.styleElements === 0, `${result.name}: the viewer stylesheet did not apply without 'unsafe-inline' (styled ${result.styled}, ${result.styleElements} <style> elements)`);
-      // Sanitizing SVG parses it with DOMParser, and the browser applies the page's policy to that inert document:
-      // event handler attributes are reported as blocked inline handlers (script-src-attr), and style attributes
-      // and <style> elements as blocked inline styles (style-src-attr, style-src-elem, reported from
-      // image-url.js). That is expected for the malicious fixtures only, and ends with the DOM-free sanitizer.
-      const expected = violation => violation.startsWith("script-src-attr ") || (/^style-src-(attr|elem) /.test(violation) && violation.includes("/renderers/image-url.js"));
-      const unexpected = fixtures[result.name] ? result.violations.filter(violation => !expected(violation)) : result.violations;
-      check(!unexpected.length, `${result.name} caused violations: ${[...new Set(unexpected)].join("; ")}`);
+      // The sanitizer parses SVG without the DOM, so even malicious SVG causes no policy reports (0.2.x reported
+      // blocked inline handlers and styles while parsing it with DOMParser).
+      check(!result.violations.length, `${result.name} caused violations: ${[...new Set(result.violations)].join("; ")}`);
     }
     const patterns = results.find(result => result.name === "pattern.xlsx")?.patterns ?? 0;
     // Some fixtures carry deliberately truncated images; what matters is that blob: images decode under the policy.
@@ -622,9 +697,22 @@ async function run() {
     check(allowed.styleElement && allowed.styled && allowed.nonce === STYLE_NONCE && !allowed.violations.length, `the fallback <style> element should apply with styleNonce (${JSON.stringify(allowed)})`);
     checkExceptions();
     await closeTab(nonceTab);
+    // Every file again with Trusted Types enforced and no policy: no markup sink is used anywhere.
+    const trustedTab = await openTab(`${HOST}/csp-tt.html`, "csp-trusted-types");
+    await waitReady(trustedTab);
+    const trusted = await evaluate(trustedTab.sessionId, `window.renderAll(${JSON.stringify(Object.keys(files))})`);
+    for (const result of trusted) {
+      if (refusedFiles.has(result.name)) check(!!result.error, `Trusted Types: ${result.name} should be refused`);
+      else check(!result.error && result.rendered && result.styled, `Trusted Types: ${result.name} did not render (${result.error ?? "empty"})`);
+      check(!result.violations.length, `Trusted Types: ${result.name} caused violations: ${[...new Set(result.violations)].join("; ")}`);
+    }
+    const trustedImages = trusted.reduce((sum, result) => sum + result.decoded, 0);
+    check(trustedImages > 0, "no image was decoded under Trusted Types");
+    checkExceptions();
+    await closeTab(trustedTab);
     const handlerReports = results.reduce((sum, result) => sum + result.violations.length, 0);
-    record({ policy: CSP, results, sheets, fallback: { blocked, allowed } });
-    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} csp: ${results.length} files rendered and styled under the recommended policy (no 'unsafe-inline'); ${patterns} pattern fill(s), ${images} decoded image(s); ${handlerReports} report(s) of blocked inline handlers or styles, all from sanitizing malicious SVG`);
+    record({ policy: CSP, results, sheets, fallback: { blocked, allowed }, trustedTypes: { policy: CSP_TRUSTED_TYPES, results: trusted } });
+    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} csp: ${results.length} files rendered and styled under the recommended policy (no 'unsafe-inline'); ${patterns} pattern fill(s), ${images} decoded image(s); ${handlerReports} policy reports; Trusted Types enforced: ${trusted.length} files rendered, ${trustedImages} decoded image(s), no violations`);
     console.log(`  ${failures.length === before ? "ok  " : "FAIL"} stylesheet: one shared adopted sheet per root (shadow root included), removed with the last viewer; fallback <style> blocked without a nonce, applied with styleNonce`);
   }
 

@@ -1,4 +1,7 @@
 import { PreviewError } from "../errors.js";
+import { appendText, openElement, type NsXmlAttribute, type NsXmlNode } from "../xml/ns-tree.js";
+import { NamespaceScope } from "../xml/xml-namespaces.js";
+import { XmlTokenizer } from "../xml/xml-tokenizer.js";
 
 /**
  * The only place where image bytes from a file become blob URLs.
@@ -113,7 +116,6 @@ export function revokeImageUrls(urls: string[]): void {
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
-const XMLNS_NAMESPACE = "http://www.w3.org/2000/xmlns/";
 const svgElements = new Set(["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "linearGradient", "radialGradient", "stop", "clipPath", "mask", "title", "desc"]);
 /** Value rules per allowed attribute. Attributes must have no namespace; anything not listed is removed. */
 const colorValue = String.raw`(?:none|currentColor|transparent|inherit|#[0-9a-f]{3,8}|[a-z]{3,20}|(?:rgba?|hsla?)\([0-9.,%\s+-]*\))`;
@@ -130,55 +132,77 @@ const svgAttributes = new Map<string, RegExp>([
   ["id", /^[A-Za-z_][A-Za-z0-9_.:-]{0,255}$/],
 ]);
 
-function attributeAllowed(attribute: Attr): boolean {
-  // Namespace declarations may only bind the SVG namespace (the serializer keeps a prefix such as
-  // <s:svg xmlns:s="...">); no other attribute may carry a namespace.
-  if (attribute.namespaceURI === XMLNS_NAMESPACE) return attribute.value === SVG_NAMESPACE;
-  if (attribute.namespaceURI !== null) return false;
-  const rule = svgAttributes.get(attribute.localName);
+function attributeAllowed(attribute: NsXmlAttribute): boolean {
+  // Only unprefixed attributes (no namespace). Namespace declarations are not attributes here: the output
+  // declares the SVG namespace once, on the root, and nothing else.
+  if (attribute.uri !== "") return false;
+  const rule = svgAttributes.get(attribute.local);
   return rule !== undefined && !/url\s*\(/i.test(attribute.value.replace(/url\(#/gi, "")) && rule.test(attribute.value);
 }
 
-/**
- * Walks `node` and counts everything outside the allowlist: elements outside the SVG namespace or
- * not listed, attributes that are namespaced, not listed or have a value outside their rule, and
- * any child node other than text (comments, processing instructions, CDATA). With `remove`, those
- * nodes and attributes are also removed.
- */
-function sweep(node: Element, remove: boolean): number {
-  let violations = 0;
-  for (const child of [...node.childNodes]) {
-    if (child.nodeType === 3) continue; // text
-    if (child.nodeType === 1 && (child as Element).namespaceURI === SVG_NAMESPACE && svgElements.has((child as Element).localName)) { violations += sweep(child as Element, remove); continue; }
-    violations++;
-    if (remove) child.remove();
-  }
-  for (const attribute of [...node.attributes]) {
-    if (attributeAllowed(attribute)) continue;
-    violations++;
-    if (remove) node.removeAttributeNode(attribute);
-  }
-  return violations;
-}
+const invalid = (cause?: unknown) => new PreviewError("Invalid SVG image.", "invalid-file", cause === undefined ? undefined : { cause });
 
-function parseSvgRoot(source: string): Element {
-  const parsed = new DOMParser().parseFromString(source, "image/svg+xml"), root = parsed.documentElement;
-  if (root.namespaceURI !== SVG_NAMESPACE || root.localName !== "svg" || parsed.getElementsByTagNameNS("*", "parsererror").length) throw new PreviewError("Invalid SVG image.", "invalid-file");
+/**
+ * Parses SVG source without the DOM (no DOMParser, so Trusted Types do not apply). The tokenizer rejects
+ * DOCTYPE and entity declarations, malformed XML and characters XML does not allow; it skips comments and
+ * processing instructions. CDATA sections are dropped here, as the DOM sanitizer removed them.
+ */
+function parseSvg(source: string): NsXmlNode {
+  let root: NsXmlNode | undefined;
+  try {
+    const tokenizer = new XmlTokenizer(source), scope = new NamespaceScope(), stack: Array<ReturnType<typeof openElement>> = [];
+    for (let token = tokenizer.next(); token; token = tokenizer.next()) {
+      if (token.type === "start") {
+        const node = openElement(token, scope), parent = stack[stack.length - 1];
+        if (parent) parent.children.push(node); else root = node;
+        if (token.selfClosing) scope.exit(); else stack.push(node);
+      } else if (token.type === "end") {
+        stack.pop();
+        scope.exit();
+      } else if (!source.startsWith("<![CDATA[", token.offset)) appendText(stack[stack.length - 1]!, token.value);
+    }
+  } catch (error) { throw invalid(error); }
+  if (!root || root.uri !== SVG_NAMESPACE || root.local !== "svg") throw invalid();
   return root;
 }
 
+/** Characters XML 1.0 does not allow: C0 controls other than tab, line feed and carriage return; U+FFFE, U+FFFF; unpaired surrogates. */
+const invalidCharacter = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+function xmlCharacters(value: string): string { if (invalidCharacter.test(value)) throw invalid(); return value; }
+const escapeText = (value: string) => xmlCharacters(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\r/g, "&#13;");
+const escapeAttribute = (value: string) => xmlCharacters(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/\t/g, "&#9;").replace(/\n/g, "&#10;").replace(/\r/g, "&#13;");
+
 /**
- * Reduces SVG to an element and attribute allowlist, then parses the result again and rejects it
- * unless it passes the same allowlist unchanged. Throws PreviewError for input that is not a
- * well-formed SVG document or whose sanitized form does not validate.
+ * Writes the allowed part of `node`: SVG-namespace elements in the allowlist with their allowed attributes, and
+ * text. Returns the markup and how many elements and attributes were left out.
+ */
+function serialize(node: NsXmlNode, isRoot: boolean): { markup: string; removed: number } {
+  let removed = 0, markup = `<${node.local}${isRoot ? ` xmlns="${SVG_NAMESPACE}"` : ""}`;
+  for (const attribute of node.attributes) {
+    if (attributeAllowed(attribute)) markup += ` ${attribute.local}="${escapeAttribute(attribute.value)}"`;
+    else removed++;
+  }
+  let content = "";
+  for (const child of node.children) {
+    if (typeof child === "string") { content += escapeText(child); continue; }
+    if (child.uri !== SVG_NAMESPACE || !svgElements.has(child.local)) { removed++; continue; }
+    const inner = serialize(child, false);
+    content += inner.markup; removed += inner.removed;
+  }
+  return { markup: content ? `${markup}>${content}</${node.local}>` : `${markup}/>`, removed };
+}
+
+/**
+ * Reduces SVG to an element and attribute allowlist and serializes the result, then parses that output again and
+ * rejects it unless it passes the same allowlist unchanged and serializes to exactly the same markup. Throws
+ * PreviewError for input that is not a well-formed SVG document without a DOCTYPE, or whose sanitized form
+ * does not validate.
  */
 export function sanitizeSvg(bytes: Uint8Array): Uint8Array {
   let source: string;
-  try { source = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { throw new PreviewError("Invalid SVG image.", "invalid-file"); }
-  const root = parseSvgRoot(source);
-  sweep(root, true);
-  // Only the root element is serialized, so a DOCTYPE and prolog processing instructions are dropped.
-  const output = new XMLSerializer().serializeToString(root);
-  if (sweep(parseSvgRoot(output), false) !== 0) throw new PreviewError("Invalid SVG image.", "invalid-file");
+  try { source = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch (error) { throw invalid(error); }
+  const output = serialize(parseSvg(source), true).markup;
+  const check = serialize(parseSvg(output), true);
+  if (check.removed !== 0 || check.markup !== output) throw invalid();
   return new TextEncoder().encode(output);
 }

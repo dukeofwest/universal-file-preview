@@ -57,8 +57,18 @@ export function svgSanitizerCases(attacker) {
         + `<rect width="10" height="10" fill="url(#g) , url(${attacker}/esc-list)"/><rect width="10" height="10" fill="\\75rl(${attacker}/esc-u)"/><rect width="10" height="10" clip-path="url(${attacker}/esc-clip#a)" mask="u\\72l(${attacker}/esc-mask#m)"/>`
         + `<rect width="10" height="10" fill="image(${attacker}/esc-image)"/><rect width="10" height="10" opacity="url(${attacker}/esc-opacity)" transform="url(${attacker}/esc-transform)"/>`
         + `<text font-family="x;background:url(${attacker}/esc-font)">t</text><rect width="10" height="10" fill="url(#g)"/></svg>` },
-    { name: "comments, processing instructions, CDATA and entities", keep: [">ok<"],
-      svg: `<?xml-stylesheet href="${attacker}/pi-prolog"?><!DOCTYPE svg [<!ENTITY e "<script>${script("entity-script")}</script>">]><svg xmlns="${SVG_NS}" width="20" height="20">&e;<!--<script>x</script>--><?pi ${attacker}/pi?><text>ok<![CDATA[<script>${script("cdata")}</script>]]></text></svg>` },
+    { name: "comments, processing instructions and CDATA", keep: [">ok<"],
+      svg: `<?xml-stylesheet href="${attacker}/pi-prolog"?><svg xmlns="${SVG_NS}" width="20" height="20"><!--<script>x</script>--><?pi ${attacker}/pi?><text>ok<![CDATA[<script>${script("cdata")}</script>]]></text></svg>` },
+    // Since 0.3.0 the sanitizer refuses any DOCTYPE (0.2.x expanded internal entities and dropped the DOCTYPE).
+    { name: "DOCTYPE with an entity declaration", invalid: true,
+      svg: `<?xml-stylesheet href="${attacker}/pi-prolog"?><!DOCTYPE svg [<!ENTITY e "<script>${script("entity-script")}</script>">]><svg xmlns="${SVG_NS}" width="20" height="20">&e;<text>ok</text></svg>` },
+    { name: "DOCTYPE with an external entity", invalid: true,
+      svg: `<!DOCTYPE svg [<!ENTITY x SYSTEM "${attacker}/external-entity">]><svg xmlns="${SVG_NS}" width="20" height="20"><text>&x;</text></svg>` },
+    { name: "plain DOCTYPE", invalid: true,
+      svg: `<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg xmlns="${SVG_NS}" width="20" height="20"/>` },
+    { name: "markup characters and quotes in text and attribute values",
+      keep: [">a &lt; b &amp; c &gt; d<", `font-family="&quot;Segoe UI&quot;, 'Arial'"`, "<desc>&lt;script&gt;alert(1)&lt;/script&gt;</desc>"],
+      svg: `<svg xmlns="${SVG_NS}" width="20" height="20"><desc>&lt;script&gt;alert(1)&lt;/script&gt;</desc><text font-family="&quot;Segoe UI&quot;, 'Arial'">a &lt; b &amp; c &gt; d</text></svg>` },
     { name: "legitimate drawing survives", keep: ['<linearGradient id="grad"', 'stop-color="rgb(10, 20, 30)"', 'fill="url(#grad)"', 'transform="rotate(45 50 50)"', `font-family="'Segoe UI', sans-serif"`, ">Label<", 'd="M10 10 L90 90 Z"', 'clip-path="url(#clip)"', "<title>Chart</title>", 'fill="url(#grad) #000"', 'stroke="url(#grad) none"'],
       svg: `<svg xmlns="${SVG_NS}" xmlns:xlink="${XLINK_NS}" viewBox="0 0 100 100" width="100" height="100"><title>Chart</title><defs><linearGradient id="grad" x1="0" x2="1"><stop offset="0%" stop-color="rgb(10, 20, 30)"/><stop offset="100%" stop-color="#fff" stop-opacity="0.5"/></linearGradient><clipPath id="clip"><rect width="100" height="100"/></clipPath></defs>`
         + `<g clip-path="url(#clip)"><rect width="100" height="100" fill="url(#grad)" stroke="currentColor" stroke-width="2"/><path d="M10 10 L90 90 Z" fill="none" stroke="#123456" transform="rotate(45 50 50)"/><text x="10" y="50" font-family="'Segoe UI', sans-serif" font-size="12" text-anchor="start">Label</text><circle cx="50" cy="50" r="5" fill="url(#grad) #000" stroke="url(#grad) none"/></g></svg>` },

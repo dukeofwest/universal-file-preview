@@ -48,9 +48,9 @@ test("attribute values are set as text and never parsed as markup", () => {
 });
 
 test("the library source has no HTML or markup sinks", () => {
-  const root = fileURLToPath(new URL("../src/", import.meta.url)), sinks = /\b(innerHTML|outerHTML|insertAdjacentHTML|createContextualFragment|document\.write)\b/;
+  const root = fileURLToPath(new URL("../src/", import.meta.url)), sinks = /\b(innerHTML|outerHTML|insertAdjacentHTML|createContextualFragment|document\.write|new DOMParser|parseFromString|setHTMLUnsafe)\b/;
   const files = readdirSync(root, { recursive: true }).filter(file => /\.ts$/.test(file));
   assert.ok(files.length > 20);
   const found = files.filter(file => sinks.test(readFileSync(join(root, file), "utf8")));
-  assert.deepEqual(found, [], "innerHTML and similar sinks are not used (DOMParser is removed in a later step)");
+  assert.deepEqual(found, [], "innerHTML, DOMParser and similar markup sinks are not used (Trusted Types)");
 });
