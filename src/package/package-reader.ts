@@ -1,4 +1,4 @@
-import { PreviewError } from "../errors.js";
+import { documentDetail, PreviewError } from "../errors.js";
 import { ZipArchive, type ZipEntryInfo } from "../archive/zip-reader.js";
 
 /**
@@ -64,9 +64,9 @@ export class PackageReader {
   /** Reads a part, enforcing its size limit and the total budget before decompressing it. */
   readBytes(path: string): Uint8Array {
     const name = normalize(path), entry = this.#entries.get(name);
-    if (!entry) throw new PreviewError(`Package part not found: ${name}`, "invalid-file");
+    if (!entry) throw new PreviewError("Package part not found.", "invalid-file", documentDetail("part", name));
     const partLimit = this.#partBytes.get(name) ?? this.#maxPartBytes;
-    if (entry.uncompressedSize > partLimit) throw new PreviewError(`Package part ${name} exceeds the configured size limit.`, "resource-limit");
+    if (entry.uncompressedSize > partLimit) throw new PreviewError("A package part exceeds the configured size limit.", "resource-limit", documentDetail("part", name));
     if (this.#totalBytes + entry.uncompressedSize > this.#maxTotalBytes) throw new PreviewError("Package exceeds the configured total size limit.", "resource-limit");
     this.#totalBytes += entry.uncompressedSize;
     return this.#archive.read(name);
@@ -94,7 +94,8 @@ export function decodeXmlText(bytes: Uint8Array, subject: string): string {
   try { text = new TextDecoder(encoding, { fatal: true }).decode(bytes); }
   catch (cause) { throw new PreviewError(`${subject} is not valid ${encoding.toUpperCase()} text.`, "invalid-file", { cause }); }
   const declared = encodingDeclaration.exec(text)?.[2];
-  if (declared !== undefined && !supportedEncodings.has(declared.trim().toLowerCase())) throw new PreviewError(`${subject} uses the unsupported encoding ${declared}.`, "unsupported-feature");
+  // The encoding name is quoted only when it has the form XML allows (EncName), so the file cannot add its own wording.
+  if (declared !== undefined && !supportedEncodings.has(declared.trim().toLowerCase())) throw new PreviewError(/^[A-Za-z][A-Za-z0-9._-]{0,39}$/.test(declared) ? `${subject} uses the unsupported encoding ${declared}.` : `${subject} uses an unsupported encoding.`, "unsupported-feature", documentDetail("encoding", declared));
   return text;
 }
 

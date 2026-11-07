@@ -26,7 +26,12 @@ type Node =
 
 const MAX_ROW = 1_048_576, MAX_COLUMN = 16_384;
 const errors = { value: new FormulaError("#VALUE!"), div0: new FormulaError("#DIV/0!"), ref: new FormulaError("#REF!"), name: new FormulaError("#NAME?"), na: new FormulaError("#N/A"), num: new FormulaError("#NUM!") };
+/** Parsed formulas by text, for one workbook at a time (cleared by clearFormulaCache when a parse ends). */
 const astCache = new Map<string, Node | FormulaError>();
+const MAX_CACHED_FORMULAS = 100_000;
+
+/** Forgets the parsed formulas; called when a workbook parse ends, so nothing is kept between documents. */
+export function clearFormulaCache(): void { astCache.clear(); }
 
 export function parseFormula(source: string): Node | FormulaError {
   const cached = astCache.get(source);
@@ -34,7 +39,7 @@ export function parseFormula(source: string): Node | FormulaError {
   let result: Node | FormulaError;
   try { result = new Parser(source.startsWith("=") ? source.slice(1) : source).parse(); }
   catch { result = errors.name; }
-  if (astCache.size > 5000) astCache.clear();
+  if (astCache.size >= MAX_CACHED_FORMULAS) astCache.clear();
   astCache.set(source, result);
   return result;
 }

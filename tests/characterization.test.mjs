@@ -128,7 +128,10 @@ const detectionCases = [
  * deliberate, reviewed decision rather than a side effect.
  */
 const detectionQuirks = [
-  ["a %PDF- marker anywhere in the first 1 KiB beats every other signature", "x.bin", "", concat(PNG, ascii("%PDF-")), "pdf"],
+  // Changed in 0.3.0 (audit item on detection precedence): signatures at offset 0 win; a later %PDF- marker counts
+  // only when nothing else matched.
+  ["a %PDF- marker after another signature does not override it", "x.bin", "", concat(PNG, ascii("%PDF-")), "png"],
+  ["an SVG that mentions %PDF- is still SVG", "x.svg", "", ascii('<svg xmlns="http://www.w3.org/2000/svg"><text>%PDF-</text></svg>'), "svg"],
   ["a RIFF file that is not WebP falls back to the extension", "sound.webp", "", concat(ascii("RIFF"), bytes(0, 0, 0, 0), ascii("WAVE")), "webp"],
   ["a self-closing <svg/> root is not sniffed", "x.bin", "", utf8("<svg/>"), "unknown"],
   ["a comment before <svg> is not sniffed", "x.bin", "", utf8("<!-- c --><svg></svg>"), "unknown"],
@@ -260,7 +263,7 @@ test("M0 ZipArchive default limits and rejections", () => {
   const zip64 = makeZip({ "a.txt": "x" }); zip64.writeUInt32LE(0xffffffff, centralOffset(zip64) + 20);
   assert.throws(() => ZipArchive.open(zip64), previewError("unsupported-feature", /^ZIP64 or multi-disk entry is unsupported\.$/));
   assert.throws(() => ZipArchive.open(makeZip({ "dir\\file": "x" })), previewError("invalid-file", /^Unsafe ZIP package path\.$/));
-  assert.throws(() => ZipArchive.open(makeZip({ "a.txt": "x" })).read("missing.txt"), previewError("invalid-file", /^ZIP entry not found: missing\.txt$/));
+  assert.throws(() => ZipArchive.open(makeZip({ "a.txt": "x" })).read("missing.txt"), previewError("invalid-file", /^ZIP entry not found\.$/));
 });
 
 test("M0 inflateRaw output matches zlib for varied payloads and levels", () => {

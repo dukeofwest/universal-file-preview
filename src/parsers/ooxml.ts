@@ -1,6 +1,7 @@
 import { PreviewError } from "../errors.js";
 import { checkModel, ModelBudget } from "../model-budget.js";
 import { OoxmlPackage } from "../package/ooxml-package.js";
+import { isExternalRelationship, ownValue, relationshipId } from "./ooxml-relationships.js";
 import { parseXml, elements, firstElement, textContent, type XmlNode } from "../xml/xml-parser.js";
 import type { Paragraph, Presentation, PptxElement, PptxFill, PptxImageElement, PptxLine, PptxShapeElement, PptxTableElement, PptxTextElement, PptxShadow, Table, TableBorder, TableCell, TableCellMargins, TextRun, WordBlock, WordDocument, WordDrawing, WordDrawingPath, WordPageLayout } from "../model.js";
 
@@ -119,11 +120,13 @@ function parseWordParagraph(node: XmlNode, context: WordParseContext): Paragraph
   walk(node);
   const numPr = child(properties ?? node, "numPr");
   const numId = attribute(child(numPr ?? node, "numId"), "val");
-  const level = Number(attribute(child(numPr ?? node, "ilvl"), "val") ?? "0");
-  const numbering = numId ? context.numbering.get(numId)?.get(Number.isFinite(level) ? level : 0) : undefined;
+  // A list level from the document: a whole number from 0 to 8 (non-numeric or fractional values once broke the counters below).
+  const declaredLevel = Math.trunc(Number(attribute(child(numPr ?? node, "ilvl"), "val") ?? "0"));
+  const level = Number.isFinite(declaredLevel) ? Math.max(0, Math.min(8, declaredLevel)) : 0;
+  const numbering = numId ? context.numbering.get(numId)?.get(level) : undefined;
   let list: Paragraph["list"];
   if (numbering && numId) {
-    const listLevel = Math.max(0, Math.min(8, level)), counters = context.numberCounters.get(numId) ?? [];
+    const listLevel = level, counters = context.numberCounters.get(numId) ?? [];
     counters.length = Math.max(counters.length, listLevel + 1);
     counters[listLevel] = (counters[listLevel] ?? 0) + 1;
     counters.length = listLevel + 1;
@@ -290,7 +293,7 @@ function drawingColor(node: XmlNode | undefined, themeColors: Record<string, str
   if (!color) return undefined;
   const value = attribute(color, "val"), resolved = color.localName === "sysClr" ? attribute(color, "lastClr") : value;
   if (!resolved) return undefined;
-  if (color.localName === "schemeClr") return themeColors[resolved];
+  if (color.localName === "schemeClr") return ownValue(themeColors, resolved);
   if (/^[0-9a-f]{6}$/i.test(resolved)) return `#${resolved}`;
   return wordColor(resolved);
 }
@@ -401,7 +404,8 @@ function readThemeFonts(zip: OoxmlPackage): Record<string, string> {
 function readThemeColors(zip: OoxmlPackage): Record<string, string> {
   if (!zip.has("word/theme/theme1.xml")) return {};
   const theme = decodeXml(zip, "word/theme/theme1.xml"), scheme = child(child(theme, "themeElements"), "clrScheme");
-  const colors: Record<string, string> = {};
+  // Keyed by element names from the document: no prototype, so no name can reach Object.prototype.
+  const colors: Record<string, string> = Object.create(null);
   for (const entry of scheme?.children ?? []) {
     if (typeof entry === "string") continue;
     const color = ["srgbClr", "sysClr"].map(name => child(entry, name)).find(Boolean);
@@ -692,7 +696,7 @@ function onOff(node: XmlNode | undefined): boolean | undefined {
 function twipsToPoints(value: number): number { return Number.isFinite(value) ? value / 20 : 0; }
 function wordColor(value: string): string {
   const colors: Record<string, string> = { yellow: "#ffff00", green: "#00ff00", cyan: "#00ffff", magenta: "#ff00ff", blue: "#0000ff", red: "#ff0000", darkBlue: "#000080", darkCyan: "#008080", darkGreen: "#008000", darkMagenta: "#800080", darkRed: "#800000", darkYellow: "#808000", darkGray: "#808080", lightGray: "#c0c0c0", black: "#000000", white: "#ffffff" };
-  return colors[value] ?? "#ffff00";
+  return ownValue(colors, value) ?? "#ffff00";
 }
 function formatListNumber(value: number, format: string): string {
   if (/^(?:lowerLetter|upperLetter)$/i.test(format)) {
@@ -713,7 +717,7 @@ export function parsePptx(bytes: Uint8Array, name: string): Presentation {
   const zip = OoxmlPackage.open(bytes), presentation = decodeXml(zip, "ppt/presentation.xml");
   const relationships = parseRelationships(zip, "ppt/_rels/presentation.xml.rels", "ppt");
   const masterRef = descendants(child(presentation, "sldMasterIdLst") ?? presentation, "sldMasterId")[0];
-  const masterRelId = Object.entries(attrs(masterRef)).find(([key]) => key.endsWith(":id"))?.[1];
+  const masterRelId = relationshipId(masterRef, presentation);
   const defaultMasterPath = relationships.get(masterRelId ?? "");
   const masters = new Map<string, PptMaster>();
   const loadMaster = (masterPath: string | undefined): PptMaster => {
@@ -737,7 +741,7 @@ export function parsePptx(bytes: Uint8Array, name: string): Presentation {
   // Each slide part appears once: repeated slide ids for the same part would multiply the work (and are not valid PresentationML).
   const seenSlides = new Set<string>();
   for (const slideId of slideIds) {
-    const relId = Object.entries(attrs(slideId)).find(([key]) => key.endsWith(":id"))?.[1], path = relationships.get(relId ?? "");
+    const relId = relationshipId(slideId, presentation), path = relationships.get(relId ?? "");
     if (!path || !zip.has(path) || seenSlides.has(path)) continue;
     seenSlides.add(path);
     const slide = decodeXml(zip, path), paragraphs: Paragraph[] = [], elements: PptxElement[] = [];
@@ -1121,7 +1125,7 @@ function transformPptTransform(box: PptTransform | undefined, group: PptGroupTra
 function relationshipPart(path: string): string { const slash = path.lastIndexOf("/"); return `${path.slice(0, slash)}/_rels/${path.slice(slash + 1)}.rels`; }
 function pptImageMime(path: string): string | undefined { const ext = path.split(".").pop()?.toLowerCase(); return ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", bmp: "image/bmp", webp: "image/webp", svg: "image/svg+xml" } as Record<string, string>)[ext ?? ""]; }
 function readPptTheme(root: XmlNode): PptTheme {
-  const elementsNode = child(root, "themeElements") ?? root, scheme = child(elementsNode, "clrScheme"), colors: Record<string, string> = {};
+  const elementsNode = child(root, "themeElements") ?? root, scheme = child(elementsNode, "clrScheme"), colors: Record<string, string> = Object.create(null);
   for (const entry of scheme?.children ?? []) if (typeof entry !== "string") {
     const color = entry.children.find((part): part is XmlNode => typeof part !== "string");
     if (color) colors[entry.localName] = attribute(color, "lastClr") ?? attribute(color, "val") ?? "000000";
@@ -1149,7 +1153,7 @@ function readPptTransform(node: XmlNode | undefined): PptTransform | undefined {
   return { left, top, width, height, ...(rotation ? { rotation } : {}), ...(flipH ? { flipH } : {}), ...(flipV ? { flipV } : {}) };
 }
 function resolvePptSchemeColor(value: string, theme: PptTheme, colorMap: Record<string, string>): string | undefined {
-  const mapped = colorMap[value] ?? value, color = theme.colors[mapped];
+  const mapped = ownValue(colorMap, value) ?? value, color = ownValue(theme.colors, mapped);
   return color ? `#${color.replace(/^#/, "")}` : undefined;
 }
 function readPptColor(node: XmlNode | undefined, theme: PptTheme, colorMap: Record<string, string>): { color: string; opacity: number } | undefined {
@@ -1418,8 +1422,8 @@ function parseRelationships(zip: OoxmlPackage, path: string, base: string): Map<
   if (!zip.has(path)) return result;
   const root = decodeXml(zip, path);
   for (const rel of elements(root, "Relationship")) {
-    const id = attrs(rel)["Id"], target = attrs(rel)["Target"], mode = attrs(rel)["TargetMode"];
-    if (!id || !target || mode === "External") continue;
+    const id = attrs(rel)["Id"], target = attrs(rel)["Target"];
+    if (!id || !target || isExternalRelationship(rel)) continue;
     const joined = target.startsWith("/") ? target.slice(1) : `${base}/${target}`;
     const parts: string[] = [];
     for (const part of joined.split("/")) {

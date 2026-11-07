@@ -3,11 +3,12 @@ import { OoxmlPackage } from "../package/ooxml-package.js";
 import { parseXml, elements, firstElement, textContent, type XmlNode } from "../xml/xml-parser.js";
 import type { SpreadsheetAnchor, SpreadsheetBorderEdge, SpreadsheetBorders, SpreadsheetCell, SpreadsheetConditional, SpreadsheetDrawing, SpreadsheetFill, SpreadsheetFont, SpreadsheetRange, SpreadsheetRow, SpreadsheetRun, SpreadsheetSlicer, SpreadsheetSlicerStyle, SpreadsheetSparkline, SpreadsheetStyle, SpreadsheetTable, Workbook, Worksheet } from "../model.js";
 import { builtinNumberFormat, dateToSerial, formatValue, indexedColors as numberFormatColors, type FormattedValue } from "./xlsx-number-format.js";
-import { evaluateFormula, FormulaError, isTruthy, type FormulaContext, type FormulaScalar } from "./xlsx-formula.js";
+import { clearFormulaCache, evaluateFormula, FormulaError, isTruthy, type FormulaContext, type FormulaScalar } from "./xlsx-formula.js";
 import { builtinTableStyle, type TableStyleColor } from "./xlsx-table-styles.js";
 import { parseDrawingShapes } from "./ooxml.js";
 import { tiffToPng } from "./tiff.js";
 import { checkModel, ModelBudget } from "../model-budget.js";
+import { isExternalRelationship, relationshipId } from "./ooxml-relationships.js";
 
 export type XlsxParseOptions = { locale?: string; today?: number };
 
@@ -46,8 +47,12 @@ const MAX_FORMULA_DEPTH = 200;
 /** Slicer work is counted per table row read, plus one per other filtered column checked for that row. */
 const MAX_HYPERLINK_CELLS = 1_000_000, MAX_FILTER_COLUMNS = 100_000, MAX_SLICER_WORK = 2_000_000;
 type Remaining = { hyperlinkCells: number; filterColumns: number; slicerWork: number };
-/** Thrown inside formula evaluation when a work limit is reached; caught where evaluation starts. */
-class WorkLimitReached extends Error {}
+/**
+ * Thrown inside formula evaluation when a work limit is reached; caught where evaluation starts. Not an Error: it
+ * is control flow, and capturing a stack trace through deep formula chains on every throw was most of their cost.
+ */
+class WorkLimitReached {}
+const WORK_LIMIT_REACHED = new WorkLimitReached();
 
 type Relationship = { target: string; type: string; external: boolean };
 type Theme = { colors: string[]; majorFont?: string; minorFont?: string };
@@ -58,6 +63,11 @@ type TableInfo = { sheet: Worksheet; range: SpreadsheetRange; headerRows: number
 type PendingSlicer = { drawing: SpreadsheetSlicer; cache: string };
 
 export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOptions = {}): Workbook {
+  try { return parseWorkbook(bytes, name, options); }
+  finally { clearFormulaCache(); }
+}
+
+function parseWorkbook(bytes: Uint8Array, name: string, options: XlsxParseOptions): Workbook {
   const locale = options.locale ?? "en-US";
   const zip = OoxmlPackage.open(bytes), workbook = decodeXml(zip, "xl/workbook.xml");
   const relationships = readRelationships(zip, "xl/workbook.xml");
@@ -82,7 +92,7 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   const seenSheets = new Set<string>(), budget = new ModelBudget();
   sheetNodes.forEach((sheetNode, index) => {
     const sheetName = attr(sheetNode, "name") ?? `Sheet ${index + 1}`;
-    const relId = Object.entries(sheetNode.attributes).find(([key]) => key.endsWith(":id"))?.[1];
+    const relId = relationshipId(sheetNode, workbook);
     const rel = relationships.get(relId ?? "");
     if (!rel || rel.external || !zip.has(rel.target) || seenSheets.has(rel.target)) return;
     seenSheets.add(rel.target);
@@ -97,20 +107,22 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
 
   // Formula context spanning all sheets, so conditional formats and uncached formulas can reference any sheet.
   const bySheet = new Map(parsed.map(entry => [entry.sheet.name.toLowerCase(), entry]));
-  const evaluating = new Set<string>();
+  // Cells being evaluated, by sheet position and cell key (a number: sheet index * 2^35 + row * 16,384 + column).
+  const evaluating = new Set<number>(), sheetByName = new Map<string, Parsed | undefined>();
   let cellReads = 0;
   const cellValue = (sheetName: string, row: number, column: number): CellValue => {
-    if (++cellReads > MAX_FORMULA_CELL_READS) throw new WorkLimitReached();
-    const entry = bySheet.get(sheetName.toLowerCase());
+    if (++cellReads > MAX_FORMULA_CELL_READS) throw WORK_LIMIT_REACHED;
+    let entry = sheetByName.get(sheetName);
+    if (entry === undefined && !sheetByName.has(sheetName)) { entry = bySheet.get(sheetName.toLowerCase()); sheetByName.set(sheetName, entry); }
     if (!entry) return new FormulaError("#REF!");
     const key = row * 16_384 + column;
     const value = entry.values.get(key);
     if (value !== undefined) return value;
     const pending = entry.formulas.get(key);
     if (!pending) return null;
-    const guard = `${sheetName}!${key}`;
+    const guard = entry.index * 2 ** 35 + key;
     if (evaluating.has(guard)) return new FormulaError("#REF!");
-    if (evaluating.size >= MAX_FORMULA_DEPTH || (cellReads += FORMULA_EVALUATION_COST) > MAX_FORMULA_CELL_READS) throw new WorkLimitReached();
+    if (evaluating.size >= MAX_FORMULA_DEPTH || (cellReads += FORMULA_EVALUATION_COST) > MAX_FORMULA_CELL_READS) throw WORK_LIMIT_REACHED;
     evaluating.add(guard);
     let result;
     try { result = evaluateFormula(pending.formula, contextFor(sheetName, row, column), pending.origin); } finally { evaluating.delete(guard); }
@@ -146,7 +158,7 @@ export function parseXlsx(bytes: Uint8Array, name: string, options: XlsxParseOpt
   const tablesById = new Map<number, TableInfo>(), pendingSlicers: PendingSlicer[] = [], remaining: Remaining = { hyperlinkCells: MAX_HYPERLINK_CELLS, filterColumns: MAX_FILTER_COLUMNS, slicerWork: MAX_SLICER_WORK }, formattedCells = { remaining: MAX_CF_CELLS };
   /** Context for a conditional-format formula; every evaluation is charged like an uncached formula. */
   const ruleContext = (sheetName: string, row: number, column: number): FormulaContext => {
-    if ((cellReads += FORMULA_EVALUATION_COST) > MAX_FORMULA_CELL_READS) throw new WorkLimitReached();
+    if ((cellReads += FORMULA_EVALUATION_COST) > MAX_FORMULA_CELL_READS) throw WORK_LIMIT_REACHED;
     return contextFor(sheetName, row, column);
   };
   /** Runs formula-dependent work; when a work limit is reached the feature is left out instead of failing the preview. */
@@ -288,7 +300,7 @@ function readWorksheet(root: XmlNode, name: string, shared: Array<{ text: string
 }
 
 function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rels: Map<string, Relationship>, styles: StyleSheet, theme: Theme, themeRoot: XmlNode | undefined, tablesById: Map<number, TableInfo>, pendingSlicers: PendingSlicer[], remaining: Remaining, budget: ModelBudget): void {
-  const relFor = (node: XmlNode | undefined) => rels.get(Object.entries(node?.attributes ?? {}).find(([key]) => key.endsWith(":id"))?.[1] ?? "");
+  const relFor = (node: XmlNode | undefined) => rels.get(relationshipId(node, root) ?? "");
   // Hyperlinks: only web and mail targets become clickable.
   const hyperlinks: Record<string, string> = {};
   for (const link of elements(child(root, "hyperlinks") ?? root, "hyperlink")) {
@@ -319,7 +331,7 @@ function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rel
   const filterButtons = new Set<string>();
   // Filter columns can hide their drop-down button (hiddenButton, or showButton="0").
   const addFilterButtons = (filter: XmlNode | undefined, range: SpreadsheetRange) => {
-    const hidden = new Set((filter ? elements(filter, "filterColumn") : []).filter(column => flag(column, "hiddenButton") || !flag(column, "showButton", true)).map(column => Number(attr(column, "colId"))));
+    const hidden = new Set((filter ? elements(filter, "filterColumn") : []).filter(column => flag(column, "hiddenButton") || !flag(column, "showButton", true)).map(column => filterColumnIndex(column, range)));
     for (let column = range.left; column <= range.right && remaining.filterColumns > 0; column++, remaining.filterColumns--) if (!hidden.has(column - range.left)) filterButtons.add(`${columnName(column)}${range.top}`);
   };
   const sheetFilter = parseRange(attr(child(root, "autoFilter"), "ref") ?? "");
@@ -356,7 +368,8 @@ function readSheetExtras(zip: OoxmlPackage, root: XmlNode, sheet: Worksheet, rel
       const filters: TableInfo["filters"] = new Map();
       for (const column of elements(child(table, "autoFilter") ?? table, "filterColumn")) {
         const list = child(column, "filters");
-        if (list) filters.set(Number(attr(column, "colId")), { values: new Set(elements(list, "filter").map(filter => (attr(filter, "val") ?? "").toLowerCase())), blank: flag(list, "blank") });
+        const index = filterColumnIndex(column, range);
+        if (list && index !== undefined) filters.set(index, { values: new Set(elements(list, "filter").map(filter => (attr(filter, "val") ?? "").toLowerCase())), blank: flag(list, "blank") });
       }
       const columnIds = elements(child(table, "tableColumns") ?? table, "tableColumn").map(column => Number(attr(column, "id")));
       tablesById.set(tableId, { sheet, range, headerRows, totalsRows, columnIds, filters });
@@ -426,7 +439,7 @@ function resolveSlicers(zip: OoxmlPackage, workbook: XmlNode, relationships: Map
   const pivotCaches = new Map<string, string>();
   const pivotLists = [child(workbook, "pivotCaches"), ...elements(child(workbook, "extLst") ?? workbook, "ext").map(ext => child(ext, "pivotCaches"))];
   for (const list of pivotLists) for (const node of list ? elements(list, "pivotCache") : []) {
-    const rel = relationships.get(Object.entries(node.attributes).find(([key]) => key.endsWith(":id"))?.[1] ?? "");
+    const rel = relationships.get(relationshipId(node, workbook) ?? "");
     if (rel && !rel.external && zip.has(rel.target)) pivotCaches.set(attr(node, "cacheId") ?? "", rel.target);
   }
   const collator = new Intl.Collator(locale, { numeric: false, sensitivity: "base" });
@@ -1058,7 +1071,7 @@ function readRelationships(zip: OoxmlPackage, partPath: string): Map<string, Rel
   for (const rel of elements(decodeXml(zip, relsPath), "Relationship")) {
     const id = attr(rel, "Id"), target = attr(rel, "Target"), type = attr(rel, "Type") ?? "";
     if (!id || !target) continue;
-    if (attr(rel, "TargetMode") === "External") { result.set(id, { target, type, external: true }); continue; }
+    if (isExternalRelationship(rel)) { result.set(id, { target, type, external: true }); continue; }
     const joined = target.startsWith("/") ? target.slice(1) : `${directory}/${target}`, parts: string[] = [];
     let escaped = false;
     for (const part of joined.split("/")) {
@@ -1089,6 +1102,16 @@ function parseRange(ref: string): SpreadsheetRange | undefined {
   return undefined;
 }
 
-export function columnName(value: number): string { let name = ""; while (value > 0) { const remainder = (value - 1) % 26; name = String.fromCharCode(65 + remainder) + name; value = Math.floor((value - 1) / 26); } return name; }
+/**
+ * The 0-based column of a filterColumn within its range: a whole number inside the range, or undefined. The value
+ * comes from the document and is used to address cells, so anything else is ignored.
+ */
+function filterColumnIndex(column: XmlNode, range: SpreadsheetRange): number | undefined {
+  const index = Number(attr(column, "colId"));
+  return Number.isSafeInteger(index) && index >= 0 && index <= range.right - range.left ? index : undefined;
+}
+
+/** Column letters for a 1-based column number; "" for anything that is not a positive whole number (an infinite value once looped forever). */
+export function columnName(value: number): string { if (!Number.isSafeInteger(value)) return ""; let name = ""; while (value > 0) { const remainder = (value - 1) % 26; name = String.fromCharCode(65 + remainder) + name; value = Math.floor((value - 1) / 26); } return name; }
 
 function todaySerial(): number { const now = new Date(); return dateToSerial(now.getFullYear(), now.getMonth(), now.getDate()); }

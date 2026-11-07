@@ -8,6 +8,9 @@ import { WorkerClient, WorkerStartupError } from "../worker/worker-client.js";
 import type { PreviewFile, PreviewLoadOptions, PreviewOptions } from "./types.js";
 import { attachViewerStyles, type ViewerStyles } from "./viewer-styles.js";
 
+/** How long the download URL stays valid after the click (enough for the browser to start the download). */
+const DOWNLOAD_URL_LIFETIME_MS = 30_000;
+
 export class FilePreviewer {
   readonly #root: HTMLDivElement;
   readonly #status: HTMLDivElement;
@@ -81,7 +84,7 @@ export class FilePreviewer {
       this.#status.textContent = `${file.name} - ${format.toUpperCase()}`;
       this.#status.className = "ufp-status ufp-status-ready";
       if (this.#title) this.#title.textContent = file.name, this.#title.title = file.name;
-      this.#currentFile = file; this.#currentBytes = bytes; this.#currentMime = mimeType;
+      this.#currentFile = file; this.#currentBytes = bytes;
     } catch (error) {
       if (generation !== this.#generation) return;
       const previewError = error instanceof PreviewError ? error : controller.signal.aborted
@@ -114,7 +117,7 @@ export class FilePreviewer {
 
   #currentFile: PreviewFile | undefined;
   #currentBytes: Uint8Array | undefined;
-  #currentMime = "application/octet-stream";
+  #downloadTimer: ReturnType<typeof setTimeout> | undefined;
 
   setZoom(value: number): void {
     this.#assertAlive();
@@ -128,7 +131,7 @@ export class FilePreviewer {
   destroy(): void {
     if (this.#destroyed) return;
     this.#destroyed = true; this.#generation++; this.#controller?.abort(); this.#worker?.destroy(); this.#instance?.destroy?.();
-    if (this.#downloadUrl) URL.revokeObjectURL(this.#downloadUrl);
+    this.#revokeDownload();
     this.#styles.release(); this.#root.remove();
   }
 
@@ -147,12 +150,23 @@ export class FilePreviewer {
   #button(label: string, text: string, action: () => void): void {
     const button = document.createElement("button"); button.type = "button"; button.className = "ufp-button"; button.textContent = text; button.setAttribute("aria-label", label); button.onclick = action; this.#toolbar.append(button);
   }
+  /**
+   * Saves the original file. The blob is always application/octet-stream, whatever type the source declared, so
+   * the browser saves it instead of displaying it; its URL is revoked shortly after the download starts.
+   */
   #download(): void {
     if (!this.#currentFile || !this.#currentBytes) return;
-    if (this.#downloadUrl) URL.revokeObjectURL(this.#downloadUrl);
+    this.#revokeDownload();
     const bytes = new Uint8Array(this.#currentBytes.byteLength); bytes.set(this.#currentBytes);
-    this.#downloadUrl = URL.createObjectURL(new Blob([bytes.buffer], { type: this.#currentMime }));
-    const link = document.createElement("a"); link.href = this.#downloadUrl; link.download = this.#currentFile.name; link.click();
+    const url = URL.createObjectURL(new Blob([bytes.buffer], { type: "application/octet-stream" }));
+    this.#downloadUrl = url;
+    const link = document.createElement("a"); link.href = url; link.download = this.#currentFile.name; link.click();
+    this.#downloadTimer = setTimeout(() => { if (this.#downloadUrl === url) this.#revokeDownload(); }, DOWNLOAD_URL_LIFETIME_MS);
+  }
+  #revokeDownload(): void {
+    clearTimeout(this.#downloadTimer); this.#downloadTimer = undefined;
+    if (this.#downloadUrl) URL.revokeObjectURL(this.#downloadUrl);
+    this.#downloadUrl = undefined;
   }
   #assertAlive(): void { if (this.#destroyed) throw new PreviewError("This previewer has been destroyed.", "renderer-error"); }
   #checkCurrent(generation: number, signal: AbortSignal): void { if (signal.aborted || generation !== this.#generation) throw new PreviewError("Preview loading was cancelled.", "aborted"); }

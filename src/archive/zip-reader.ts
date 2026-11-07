@@ -1,4 +1,4 @@
-import { PreviewError } from "../errors.js";
+import { documentDetail, PreviewError } from "../errors.js";
 import { BinaryReader } from "../binary/binary-reader.js";
 import { inflateRaw } from "./inflate.js";
 
@@ -21,7 +21,7 @@ export class ZipArchive {
   has(path: string): boolean { return this.#entries.has(normalizePath(path)); }
   read(path: string): Uint8Array {
     const item = this.#entries.get(normalizePath(path));
-    if (!item) throw new PreviewError(`ZIP entry not found: ${path}`, "invalid-file");
+    if (!item) throw new PreviewError("ZIP entry not found.", "invalid-file", documentDetail("entry", path));
     const reader = new BinaryReader(this.bytes);
     reader.seek(item.localOffset);
     if (reader.readUint32LE() !== LOCAL) throw new PreviewError("Invalid ZIP local file header.", "invalid-file");
@@ -34,7 +34,7 @@ export class ZipArchive {
     const data = reader.readBytes(item.info.compressedSize);
     const result = item.info.compressionMethod === 0 ? data.slice() : inflateRaw(data, item.info.uncompressedSize, this.maxEntrySize);
     if (result.length !== item.info.uncompressedSize) throw new PreviewError("ZIP entry size does not match its declaration.", "invalid-file");
-    if (crc32(result) !== item.crc) throw new PreviewError(`ZIP checksum mismatch for ${item.info.name}.`, "invalid-file");
+    if (crc32(result) !== item.crc) throw new PreviewError("ZIP entry checksum mismatch.", "invalid-file", documentDetail("entry", item.info.name));
     return result;
   }
 
@@ -76,7 +76,7 @@ export class ZipArchive {
       catch { throw new PreviewError("ZIP entry name is not valid UTF-8.", "invalid-file"); }
       reader.skip(extraLength + commentLength);
       if (!name || name.includes("\\") || name.split("/").includes("..")) throw new PreviewError("Unsafe ZIP package path.", "invalid-file");
-      if (this.#entries.has(name)) throw new PreviewError(`Duplicate ZIP entry: ${name}`, "invalid-file");
+      if (this.#entries.has(name)) throw new PreviewError("Duplicate ZIP entry.", "invalid-file", documentDetail("entry", name));
       this.#entries.set(name, { info: { name, compressedSize, uncompressedSize, compressionMethod: method }, crc, flags, localOffset });
     }
     if (reader.offset !== directoryOffset + directorySize) throw new PreviewError("ZIP central-directory size is inconsistent.", "invalid-file");

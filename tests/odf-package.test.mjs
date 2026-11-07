@@ -32,12 +32,12 @@ test("PackageReader reads parts, normalises paths and tracks the total", () => {
   assert.equal(new TextDecoder().decode(reader.readBytes("dir/b.bin")), "12345");
   assert.equal(reader.readText("/a.xml"), "<a/>");
   assert.equal(reader.totalBytes, 9);
-  fails(() => reader.readBytes("missing.xml"), "invalid-file", /^Package part not found: missing\.xml$/);
+  fails(() => reader.readBytes("missing.xml"), "invalid-file", /^Package part not found\.$/);
 });
 
 test("PackageReader enforces part limits, per-path overrides and the total budget before decompressing", () => {
   const bytes = new Uint8Array(makeZip({ "content.xml": "x".repeat(20), "small.xml": "y".repeat(5) }, { deflate: true }));
-  fails(() => PackageReader.openZip(bytes, { maxPartBytes: 10 }).readBytes("content.xml"), "resource-limit", /^Package part content\.xml exceeds the configured size limit\.$/);
+  fails(() => PackageReader.openZip(bytes, { maxPartBytes: 10 }).readBytes("content.xml"), "resource-limit", /^A package part exceeds the configured size limit\.$/);
   assert.equal(PackageReader.openZip(bytes, { maxPartBytes: 10, partBytes: { "/content.xml": 20 } }).readBytes("content.xml").length, 20);
   assert.equal(PackageReader.openZip(bytes, { maxTotalBytes: 25 }).readBytes("content.xml").length, 20, "reaching the budget exactly is allowed");
   const budget = PackageReader.openZip(bytes, { maxTotalBytes: 29 });
@@ -57,7 +57,7 @@ test("PackageReader opens packages with large unused parts that ZipArchive's def
   fails(() => ZipArchive.open(archive), "resource-limit", /^ZIP entry exceeds the configured size limit\.$/);
   const reader = PackageReader.openZip(new Uint8Array(archive));
   assert.equal(reader.readText("content.xml"), "<a/>");
-  fails(() => reader.readBytes("Media/video.bin"), "resource-limit", /^Package part Media\/video\.bin exceeds/);
+  fails(() => reader.readBytes("Media/video.bin"), "resource-limit", /^A package part exceeds the configured size limit\.$/);
   assert.equal(reader.totalBytes, 4);
 });
 

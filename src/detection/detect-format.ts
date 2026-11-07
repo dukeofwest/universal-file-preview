@@ -26,8 +26,9 @@ const odfPackageFormats: Readonly<Record<string, FileFormat>> = { [ODS_MEDIA_TYP
 export function detectFormat(name: string, mimeType = "", bytes?: Uint8Array): FileFormat {
   const mime = mimeType.toLowerCase().split(";")[0]?.trim() ?? "";
   if (bytes) {
-    const header = ascii(bytes, 0, Math.min(bytes.length, 1024));
-    if (header.includes("%PDF-")) return "pdf";
+    // Signatures at offset 0 decide first; a "%PDF-" marker later in the first KiB (which PDF readers tolerate)
+    // counts only when nothing else matched, so a ZIP entry name or image data containing it cannot change the format.
+    if (starts(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d])) return "pdf";
     if (starts(bytes, [0x47, 0x49, 0x46, 0x38])) return "gif";
     if (starts(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "png";
     if (starts(bytes, [0xff, 0xd8, 0xff])) return "jpeg";
@@ -41,6 +42,7 @@ export function detectFormat(name: string, mimeType = "", bytes?: Uint8Array): F
     if ((extensionOf(name) === "fods" || mime === ODS_MEDIA_TYPE) && isFlatSpreadsheet(bytes)) return "fods";
     const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 256))).trimStart();
     if (/^(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(prefix)) return "svg";
+    if (ascii(bytes, 0, Math.min(bytes.length, 1024)).includes("%PDF-")) return "pdf";
   }
   return lookup(byMime, mime) ?? lookup(extensions, extensionOf(name)) ?? "unknown";
 }
