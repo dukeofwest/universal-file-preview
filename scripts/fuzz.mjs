@@ -6,8 +6,9 @@
 // Mutates the test corpus (OOXML fixtures, demo samples, OpenDocument and SVG files, the denial-of-service
 // corpus) with bit flips, byte overwrites, insertions, deletions, ZIP header field changes and splices, and runs
 // every mutant through format detection, the matching parser and the SVG sanitizer in a worker thread. A mutant
-// fails the run when the library throws anything other than a PreviewError (a bug), takes longer than the
-// watchdog, or exhausts the worker's capped heap. Failing inputs are written to the output folder with their seed
+// fails the run when the library throws anything other than a PreviewError (a bug), takes longer than SLOW_MS
+// (slow: a small input that costs seconds), does not answer within the watchdog (hang), or exhausts the worker's
+// capped heap (crash). Failing inputs are written to the output folder with their seed
 // and iteration, so a run can be reproduced exactly. Exit code 1 when anything failed.
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +20,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2), option = (name, fallback) => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : fallback; };
 const seconds = Number(option("--seconds", "60")), seed = Number(option("--seed", String(Date.now() % 2 ** 31))) >>> 0;
 const out = resolve(option("--out", join(tmpdir(), "ufp-fuzz")));
-const WATCHDOG_MS = 10_000, HEAP_MIB = 512;
+// UFP_FUZZ_WATCHDOG_MS and UFP_FUZZ_SLOW_MS lower the limits to check that the hang and slow paths work.
+const WATCHDOG_MS = Number(process.env.UFP_FUZZ_WATCHDOG_MS) || 10_000, SLOW_MS = Number(process.env.UFP_FUZZ_SLOW_MS) || 5_000, HEAP_MIB = 512;
 
 /** Deterministic pseudo-random numbers (mulberry32). */
 function random(state) {
@@ -150,24 +152,25 @@ function runOne(worker, input) {
 const files = await corpus(), next = random(seed), deadline = Date.now() + seconds * 1000;
 const { makeZip } = await import(pathToFileURL(join(root, "tests", "helpers", "zip.mjs")));
 let worker = await startWorker(), iterations = 0;
-const counts = { handled: 0, refused: 0, bug: 0, hang: 0, crash: 0 }, failures = [];
+const counts = { handled: 0, refused: 0, bug: 0, slow: 0, hang: 0, crash: 0 }, failures = [];
 console.log(`fuzzing ${files.length} corpus files for ${seconds} s, seed ${seed}`);
 while (Date.now() < deadline) {
   const source = files[Math.floor(next() * files.length)];
   const mutation = (source.entries && next() < 0.6 ? mutateInside(source, next, makeZip) : undefined) ?? mutate(source.bytes, next, files);
-  const outcome = await runOne(worker, { name: source.name, bytes: mutation.bytes });
+  let outcome = await runOne(worker, { name: source.name, bytes: mutation.bytes });
+  if ((outcome.result === "handled" || outcome.result === "refused") && outcome.ms > SLOW_MS) outcome = { result: "slow", detail: `took ${outcome.ms} ms (limit ${SLOW_MS} ms)` };
   counts[outcome.result] = (counts[outcome.result] ?? 0) + 1;
-  if (outcome.result === "bug" || outcome.result === "hang" || outcome.result === "crash") {
+  if (["bug", "slow", "hang", "crash"].includes(outcome.result)) {
     mkdirSync(out, { recursive: true });
     const file = join(out, `seed-${seed}-iteration-${iterations}-${outcome.result}-${source.name.replace(/[^\w.-]/g, "_")}`);
     writeFileSync(file, mutation.bytes);
     writeFileSync(`${file}.txt`, `source ${source.name}\nmutation ${mutation.how}\nresult ${outcome.result}\n${outcome.detail ?? ""}\n`);
     failures.push(`${outcome.result}: ${source.name} (${mutation.how}) -> ${file}\n  ${String(outcome.detail ?? "").split("\n").slice(0, 3).join("\n  ")}`);
     // A hang or crash leaves the worker unusable.
-    if (outcome.result !== "bug") { await worker.terminate(); worker = await startWorker(); }
+    if (outcome.result === "hang" || outcome.result === "crash") { await worker.terminate(); worker = await startWorker(); }
   }
   iterations++;
 }
 await worker.terminate();
-console.log(`${iterations} mutants: ${counts.handled} handled, ${counts.refused} refused, ${counts.bug} bugs, ${counts.hang} hangs, ${counts.crash} crashes`);
+console.log(`${iterations} mutants: ${counts.handled} handled, ${counts.refused} refused, ${counts.bug} bugs, ${counts.slow} slow, ${counts.hang} hangs, ${counts.crash} crashes`);
 if (failures.length) { console.log(failures.join("\n")); process.exit(1); }

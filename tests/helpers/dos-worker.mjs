@@ -1,9 +1,11 @@
-// Runs one denial-of-service corpus file in a worker thread with a capped heap (tests/dos-budget.test.mjs).
+// Runs one denial-of-service corpus file in a worker thread with a capped heap (tests/dos-budget.security.mjs).
 import { parentPort } from "node:worker_threads";
 import { parseModel } from "../../dist/parsers/parse-model.js";
 import { sanitizeSvg } from "../../dist/renderers/image-url.js";
 
 parentPort.once("message", ({ kind, name, bytes }) => {
+  // Self-test of the watchdog in tests/dos-budget.security.mjs: a worker that never answers.
+  if (kind === "watchdog-self-test") for (;;) { /* never returns */ }
   const started = performance.now();
   let outcome, code, message;
   try {

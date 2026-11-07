@@ -13,18 +13,31 @@ import { dosCorpus } from "./helpers/dos-corpus.mjs";
 const TIME_LIMIT_MS = Number(process.env.UFP_DOS_TIME_LIMIT_MS) || 2000;
 const HEAP_LIMIT_MIB = Number(process.env.UFP_DOS_HEAP_LIMIT_MIB) || 256;
 
+/** The time budget of an entry: the default, or the larger budget the entry states. */
+const timeLimit = entry => Math.max(TIME_LIMIT_MS, entry.budget?.ms ?? 0);
+
 function runIsolated(entry, bytes) {
   return new Promise(resolve => {
     const heap = Math.max(HEAP_LIMIT_MIB, entry.budget?.heapMiB ?? 0);
     const worker = new Worker(new URL("./helpers/dos-worker.mjs", import.meta.url), { resourceLimits: { maxOldGenerationSizeMb: heap } });
     let settled = false;
-    const finish = result => { if (settled) return; settled = true; void worker.terminate(); resolve(result); };
+    // Watchdog: a file that never finishes (an endless loop) would otherwise stop this test, and CI, for good.
+    const watchdogMs = 2 * timeLimit(entry) + 5000;
+    const watchdog = setTimeout(() => finish({ outcome: "hang", message: `no result within ${watchdogMs} ms; the worker was terminated` }), watchdogMs);
+    const finish = result => { if (settled) return; settled = true; clearTimeout(watchdog); void worker.terminate(); resolve(result); };
     worker.once("message", finish);
     worker.once("error", error => finish({ outcome: "crashed", code: error.code, message: error.message }));
     worker.once("exit", code => finish({ outcome: "crashed", message: `worker exited with code ${code}` }));
     worker.postMessage({ kind: entry.kind, name: entry.id, bytes }, [bytes.buffer]);
   });
 }
+
+test("the watchdog ends a worker that never answers and reports a hang", async () => {
+  const started = performance.now();
+  const result = await runIsolated({ id: "watchdog self-test", kind: "watchdog-self-test" }, new Uint8Array(1));
+  assert.equal(result.outcome, "hang", JSON.stringify(result));
+  assert.ok(performance.now() - started < 2 * TIME_LIMIT_MS + 15_000, "the watchdog fired");
+});
 
 test("every denial-of-service corpus file is refused or handled in time, within a capped heap", async t => {
   const results = [];
@@ -35,14 +48,14 @@ test("every denial-of-service corpus file is refused or handled in time, within 
   const lines = results.map(({ entry, result, size }) => {
     const budget = entry.budget ? ` [budget ${entry.budget.ms} ms, ${entry.budget.heapMiB} MiB: ${entry.budget.reason}]` : "";
     const outcome = `${result.outcome}${result.code ? ` (${result.code})` : ""}`;
-    return `${entry.id}${budget}: ${outcome} in ${result.ms ?? "?"} ms, heap ${result.heapUsedMiB ?? "?"} MiB, file ${(size / 1024).toFixed(0)} KiB${result.outcome === "crashed" ? ` [${result.message}]` : ""}`;
+    return `${entry.id}${budget}: ${outcome} in ${result.ms ?? "?"} ms, heap ${result.heapUsedMiB ?? "?"} MiB, file ${(size / 1024).toFixed(0)} KiB${result.outcome === "crashed" || result.outcome === "hang" ? ` [${result.message}]` : ""}`;
   });
   t.diagnostic([`default budget ${TIME_LIMIT_MS} ms, ${HEAP_LIMIT_MIB} MiB`, ...lines].join(" | "));
   for (const { entry, result } of results) {
-    assert.notEqual(result.outcome, "crashed", `${entry.id}: ${result.message}`);
+    assert.ok(result.outcome !== "crashed" && result.outcome !== "hang", `${entry.id}: ${result.outcome}: ${result.message}`);
     assert.equal(result.outcome, entry.expect, `${entry.id} (${entry.limit}): expected ${entry.expect}, got ${result.outcome} ${result.code ?? ""} ${result.message ?? ""}`);
     if (entry.expect === "refused") assert.ok(["resource-limit", "invalid-file", "parse-error"].includes(result.code), `${entry.id}: refused with ${result.code}`);
-    const limit = Math.max(TIME_LIMIT_MS, entry.budget?.ms ?? 0);
+    const limit = timeLimit(entry);
     assert.ok(result.ms < limit, `${entry.id}: took ${result.ms} ms (limit ${limit} ms${entry.budget ? `: ${entry.budget.reason}` : ""})`);
   }
 });
