@@ -2,18 +2,56 @@ name: CI
 on:
   push:
   pull_request:
+  schedule:
+    # Nightly: a longer fuzzing run (on the default branch).
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Actions are pinned to full commit SHAs (the tag each SHA belongs to is noted); update them deliberately.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
+      # Denial-of-service corpus: time and heap budgets, run alone (security acceptance criterion 8).
+      - run: npm run test:security
+      # Throughput benchmarks with absolute time limits, run alone for the same reason.
+      - run: npm run test:performance
+      # Mutation fuzzing of the parsers: one minute per push, twenty minutes nightly. Failing inputs are uploaded.
+      - run: node scripts/fuzz.mjs --seconds ${{ github.event_name == 'schedule' && 1200 || 60 }} --out "$RUNNER_TEMP/fuzz-failures"
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fuzz-failures
+          path: ${{ runner.temp }}/fuzz-failures
+          if-no-files-found: ignore
       - run: npm pack --dry-run
+
+  browser:
+    # Headless Chrome through the DevTools protocol (no browser automation dependency).
+    runs-on: ubuntu-latest
+    env:
+      # The checks test what the viewer does inside the page; Chrome's own process sandbox cannot start on the
+      # runner (restricted user namespaces), and the runner is discarded after the job.
+      UFP_BROWSER_ARGS: --no-sandbox
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Malicious fixtures, Content Security Policy, Trusted Types and worker mode (security acceptance criteria 1-6, 11).
+      - run: node scripts/browser-security.mjs
+      # Both modes render alike: a main-thread baseline and a worker-mode comparison on the same machine.
+      - run: node scripts/browser-regression.mjs record --dir "$RUNNER_TEMP/regression"
+      - run: node scripts/browser-regression.mjs compare --dir "$RUNNER_TEMP/regression" --worker

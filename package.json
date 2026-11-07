@@ -110,6 +110,8 @@
     "preview:pages": "node apps/pages/server.mjs",
     "demo": "node apps/demo/server.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
+    "test:security": "npm run build && node --test --test-concurrency=1 tests/*.security.mjs",
+    "test:performance": "npm run build && node --test --test-concurrency=1 tests/*.performance.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

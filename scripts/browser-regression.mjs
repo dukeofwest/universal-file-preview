@@ -28,6 +28,8 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { inflateSync } from "node:zlib";
 
+// Extra browser flags from UFP_BROWSER_ARGS (space-separated), for CI machines that need, for example, --no-sandbox.
+const extraBrowserArgs = (process.env.UFP_BROWSER_ARGS ?? "").split(" ").filter(Boolean);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const VIEWER = { width: 1200, height: 900 };
 const CASE_TIMEOUT_MS = 30_000;
@@ -149,7 +151,7 @@ async function startServer(files) {
 async function launchBrowser(locale) {
   const profile = await mkdtemp(join(tmpdir(), "ufp-regression-profile-"));
   const child = spawn(browserPath, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, `--lang=${locale}`, `--accept-lang=${locale}`,
-    "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1", "--window-size=1280,1000", "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+    "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1", "--window-size=1280,1000", ...extraBrowserArgs, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
   const endpoint = await new Promise((ok, fail) => {
     let log = "";
     const timer = setTimeout(() => fail(new Error("browser did not start within 30 s")), 30_000);

@@ -214,15 +214,3 @@ test("tokenizer errors are terminal", () => {
 // Performance (logged; generous threshold per the specification)
 // -----------------------------------------------------------------------------------------------
 
-test("tokenizer processes a 50 MB document within 10 seconds", () => {
-  const unit = '<c a="1"><p>x</p></c>', repetitions = Math.ceil(50_000_000 / unit.length);
-  const source = `<r>${unit.repeat(repetitions)}</r>`;
-  const started = performance.now();
-  const tokenizer = new XmlTokenizer(source, { maxSourceLength: 64 * 1024 * 1024, maxElements: 10_000_000, maxTokens: 20_000_000 });
-  let count = 0;
-  while (tokenizer.next()) count++;
-  const elapsed = performance.now() - started;
-  assert.equal(count, repetitions * 5 + 2);
-  console.log(`# tokenizer: ${(source.length / 1e6).toFixed(1)} M chars, ${count.toLocaleString("en-US")} tokens in ${elapsed.toFixed(0)} ms (${(source.length / 1e6 / (elapsed / 1000)).toFixed(1)} M chars/s)`);
-  assert.ok(elapsed < 10_000, `took ${elapsed.toFixed(0)} ms`);
-});

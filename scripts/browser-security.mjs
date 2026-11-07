@@ -446,7 +446,9 @@ const check = (condition, message) => { if (!condition) failures.push(`${step}: 
 const record = (data) => { report.steps.push({ step, ...data }); };
 
 const profile = await mkdtemp(join(tmpdir(), "ufp-security-profile-"));
-const child = spawn(browserPath, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-gpu", "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+// Extra browser flags from UFP_BROWSER_ARGS (space-separated), for CI machines that need, for example, --no-sandbox.
+const extraBrowserArgs = (process.env.UFP_BROWSER_ARGS ?? "").split(" ").filter(Boolean);
+const child = spawn(browserPath, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-gpu", ...extraBrowserArgs, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
 let browserExited = false;
 child.on("exit", () => { browserExited = true; });
 const totalTimer = setTimeout(() => { failures.push(`total timeout of ${TOTAL_TIMEOUT_MS} ms exceeded during ${step}`); void finish(true); }, TOTAL_TIMEOUT_MS);

@@ -17,8 +17,12 @@ Run the configured checks before submitting a change:
 npm ci
 npm test
 npm run typecheck
+npm run test:security     # denial-of-service corpus, run alone
+npm run test:performance  # throughput benchmarks, run alone
 npm pack --dry-run
 ```
+
+The last two measure time and memory, so they run one file at a time; do not move timing limits into the parallel `npm test` run. For changes to parsers, also run the fuzzer for a few minutes (`node scripts/fuzz.mjs --seconds 300`) and, with a local Edge or Chrome, `node scripts/browser-security.mjs`. CI runs all of these.
 
 Add synthetic fixtures for successful and malformed input paths. Add appropriately licensed real-file fixtures and browser visual checks before making fidelity claims. Do not claim format support based only on detection, package recognition, or text extraction.
 

@@ -192,19 +192,3 @@ test("package and content errors are reported with clear codes", () => {
   fails(() => parseOds(makeOds({ body: table(row(string("a"))) + table(row(string("b"))) }), "x.ods", { limits: { maxSheets: 1 } }), "resource-limit", /more sheets/);
 });
 
-test("a 100,000-row by 10-column spreadsheet parses within the specification's budget", () => {
-  const cells = Array.from({ length: 10 }, (_, column) => `<table:table-cell office:value-type="float" office:value="${column + 0.5}" calcext:value-type="float"><text:p>${column + 0.5}</text:p></table:table-cell>`).join("");
-  const rowXml = `<table:table-row>${cells}</table:table-row>`;
-  const bytes = makeOds({ body: `<table:table table:name="Big"><table:table-column table:number-columns-repeated="10"/>${rowXml.repeat(100_000)}</table:table>` });
-  const before = process.memoryUsage().heapUsed, started = performance.now();
-  // One million cells is above the default limit (500,000 since 0.3.0); callers can raise it through limits.maxCells.
-  const workbook = parseOds(bytes, "big.ods", { limits: { maxCells: 1_000_000 } });
-  const elapsed = performance.now() - started, growth = process.memoryUsage().heapUsed - before;
-  assert.equal(workbook.sheets[0].cells.length, 1_000_000);
-  assert.equal(workbook.sheets[0].maxRow, 100_000);
-  console.log(`# parseOds: ${(bytes.length / 1048576).toFixed(1)} MiB package, 1,000,000 cells in ${elapsed.toFixed(0)} ms; heap growth ${(growth / 1048576).toFixed(0)} MiB`);
-  // This test deliberately parses one million cells. Test files run in parallel, so the limit allows
-  // for other suites (such as the resource-limit tests) competing for the CPU at the same time.
-  assert.ok(elapsed < 30_000, `took ${elapsed.toFixed(0)} ms`);
-  assert.ok(growth < 600 * 1048576, `heap grew ${(growth / 1048576).toFixed(0)} MiB`);
-});
