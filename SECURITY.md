@@ -14,10 +14,12 @@ This is a small, independently maintained project. The maintainer aims to:
 
 - acknowledge a report within 5 business days;
 - give an initial assessment (confirmed or not, and its severity) within 10 business days;
-- release a fix for a confirmed high or critical issue within 30 days of confirming it, and fix lower-severity issues in a later release;
+- release a fix for a confirmed high or critical issue within 30 calendar days of confirming it, and fix lower-severity issues in a later release;
 - publish a GitHub security advisory for each fixed vulnerability, with credit to the reporter unless they prefer otherwise.
 
-These are targets, not guarantees. Please keep the details private until a fix is released or 90 days have passed, whichever comes first, unless agreed otherwise.
+These are targets, not guarantees. If a target cannot be met, the maintainer will tell the reporter why, the current status, and the plan for mitigating the issue in the meantime.
+
+Please keep the details private until a fix is released or 90 calendar days have passed, whichever comes first, unless agreed otherwise.
 
 ## Supported versions
 
