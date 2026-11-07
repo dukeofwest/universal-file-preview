@@ -30,6 +30,8 @@ export class AppComponent implements OnDestroy {
     const instance = new FilePreviewer({
       container,
       file: { name: file.name, source: file, mimeType: file.type },
+      // Parse in a Web Worker so the page stays responsive; fall back to the main thread if it cannot start.
+      worker: { create: () => new Worker(new URL("./parser.worker", import.meta.url), { type: "module" }), fallback: "main-thread" },
     });
     this.previewer = instance;
     try {

@@ -5,9 +5,9 @@ This document records the release procedure. Each release must be validated and 
 ## Current package metadata
 
 - Name: `@dukeofwest/universal-file-preview`
-- Current version: `0.2.2`
-- npm status: `0.2.2` is published publicly at [@dukeofwest/universal-file-preview](https://www.npmjs.com/package/@dukeofwest/universal-file-preview) (verified on 2026-11-06; the registry records commit `d8b2e0e`).
-- Publishing requires two-factor authentication on the npm account; `npm publish` asks for a one-time code or browser confirmation.
+- Current version: `0.3.0`
+- npm status: `0.3.0` is published publicly at [@dukeofwest/universal-file-preview](https://www.npmjs.com/package/@dukeofwest/universal-file-preview) (verified on 2026-11-07; the registry records commit `ad54722`, and the package has a provenance statement).
+- Publishing: from 0.3.0, releases are published by the manual `Publish to npm` workflow (`.github/workflows/publish.yml`) through npm trusted publishing, without a stored npm token; npm attaches provenance. The workflow runs only from `main` (GitHub environment `npm`). Earlier versions were published locally with two-factor authentication.
 - Install: `npm install @dukeofwest/universal-file-preview`
 - Module format: ESM only; no CommonJS export is configured.
 - License metadata: MIT, matching the existing `LICENSE` file.
@@ -34,10 +34,10 @@ Verify the repository URL, pushed branch, commit, and CI result with GitHub befo
 4. Ensure the reviewed source changes are committed and the working tree is clean.
 5. Run the build, tests, typecheck, and package dry run; inspect the tarball contents and secrets.
 6. Install the actual tarball in a clean consumer project and verify package exports, declarations, CSS subpath, and documented examples.
-7. Obtain explicit publication authorization, then publish the scoped package with `npm publish --access public`.
+7. Obtain explicit publication authorization, then start the `Publish to npm` workflow on `main` (it reruns the tests and publishes with provenance).
 8. Verify the registry version and repeat the clean-consumer install using the published package. Update the changelog and installation status only after registry confirmation.
 
-Do not configure automatic npm publishing until account permissions, trusted publishing, and release protections have been confirmed. CI should test builds and pull requests but must not publish packages automatically at this stage.
+Publishing is never automatic: CI tests every push and pull request but does not publish, and the `Publish to npm` workflow runs only when started by hand. Changes to `main` require the `test` and `browser` CI checks to pass.
 
 ## Next patch release command checklist
 
@@ -67,10 +67,10 @@ git tag v0.1.2
 git push origin main v0.1.2
 ```
 
-Once that remote change is approved and verified, publish with:
+Once that remote change is approved and verified, publish by starting the workflow on `main`:
 
 ```sh
-npm publish --access public
+gh workflow run publish.yml --ref main
 ```
 
 Do not paste npm tokens into chat, files, or command history. Authenticate through npm's supported login or trusted publishing flow.

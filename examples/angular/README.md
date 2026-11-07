@@ -1,6 +1,6 @@
 # Angular integration example
 
-A small standalone Angular 22 application using the published `@dukeofwest/universal-file-preview` package (`0.2.2`). The example uses strict TypeScript and a standalone component. It does not import the library source from this repository.
+A small standalone Angular 22 application using the published `@dukeofwest/universal-file-preview` package (`0.3.0`). The example uses strict TypeScript and a standalone component. It does not import the library source from this repository.
 
 ## Requirements
 

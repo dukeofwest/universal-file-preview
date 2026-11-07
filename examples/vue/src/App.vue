@@ -26,6 +26,8 @@ async function previewFile(file: File): Promise<void> {
   const instance = new FilePreviewer({
     container,
     file: { name: file.name, source: file, mimeType: file.type },
+    // Parse in a Web Worker so the page stays responsive; fall back to the main thread if it cannot start.
+    worker: { create: () => new Worker(new URL("./parser.worker.ts", import.meta.url), { type: "module" }), fallback: "main-thread" },
   });
   previewer.value = instance;
   try {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { FilePreviewer } from "@dukeofwest/universal-file-preview";
+import ParserWorker from "@dukeofwest/universal-file-preview/worker?worker";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "The selected file could not be previewed.";
@@ -30,6 +31,8 @@ export default function App() {
     const instance = new FilePreviewer({
       container,
       file: { name: file.name, source: file, mimeType: file.type },
+      // Parse in a Web Worker so the page stays responsive; fall back to the main thread if it cannot start.
+      worker: { create: () => new ParserWorker(), fallback: "main-thread" },
     });
     previewer.current = instance;
     try {
