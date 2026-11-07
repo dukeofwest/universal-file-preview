@@ -3,10 +3,57 @@ import type { XmlNode } from "../xml/xml-parser.js";
 /**
  * Namespace-aware reading of relationship references in Office Open XML parts. Internal module.
  *
- * The XML parser used for OOXML keeps qualified names without resolving namespaces. These helpers resolve the
- * prefix where the document declares it, on the element itself or on the part's root element (where Office
- * declares it), so an attribute in an unrelated namespace is not taken for a relationship reference.
+ * The XML parser used for OOXML keeps qualified names without resolving namespaces. These helpers resolve a
+ * prefix as XML namespaces do: by the nearest declaration on the element or one of its ancestors up to the part's
+ * root, so an attribute in an unrelated namespace is not taken for a relationship reference.
  */
+
+/**
+ * The parent of each element of a part, or null when no element below the root declares a prefix (the common
+ * case: Office declares prefixes on the root, so the element and the root are the only scopes to look at). Built
+ * once per part root; the map is kept only when it is needed.
+ */
+const parentsByRoot = new WeakMap<XmlNode, Map<XmlNode, XmlNode> | null>();
+function declaresPrefix(node: XmlNode): boolean {
+  for (const name in node.attributes) if (name.startsWith("xmlns:")) return true;
+  return false;
+}
+function parentsOf(root: XmlNode): Map<XmlNode, XmlNode> | null {
+  const cached = parentsByRoot.get(root);
+  if (cached !== undefined) return cached;
+  let nested = false;
+  const stack: XmlNode[] = [root];
+  while (stack.length && !nested) {
+    for (const child of stack.pop()!.children) {
+      if (typeof child === "string") continue;
+      if (declaresPrefix(child)) { nested = true; break; }
+      stack.push(child);
+    }
+  }
+  let parents: Map<XmlNode, XmlNode> | null = null;
+  if (nested) {
+    parents = new Map();
+    const pending: XmlNode[] = [root];
+    while (pending.length) {
+      const parent = pending.pop()!;
+      for (const child of parent.children) if (typeof child !== "string") { parents.set(child, parent); pending.push(child); }
+    }
+  }
+  parentsByRoot.set(root, parents);
+  return parents;
+}
+
+/** The namespace bound to `prefix` where `node` stands, or undefined when no element in scope declares it. */
+function namespaceOf(prefix: string, node: XmlNode, root: XmlNode | undefined): string | undefined {
+  const declaration = `xmlns:${prefix}`, parents = root ? parentsOf(root) : null;
+  for (let current: XmlNode | undefined = node; current;) {
+    if (Object.hasOwn(current.attributes, declaration)) return current.attributes[declaration];
+    if (current === root) break;
+    // Up to the parent; without parent links (or for an element outside the root's tree), straight to the root.
+    current = parents?.get(current) ?? root;
+  }
+  return undefined;
+}
 
 /** The relationships namespace (transitional and strict Office Open XML). */
 const RELATIONSHIP_NAMESPACES: ReadonlySet<string> = new Set([
@@ -26,8 +73,7 @@ export function relationshipId(node: XmlNode | undefined, root: XmlNode | undefi
   for (const [name, value] of Object.entries(node.attributes)) {
     const colon = name.indexOf(":");
     if (colon < 0 || name.slice(colon + 1) !== "id") continue;
-    const prefix = name.slice(0, colon), declaration = `xmlns:${prefix}`;
-    const namespace = Object.hasOwn(node.attributes, declaration) ? node.attributes[declaration] : root && Object.hasOwn(root.attributes, declaration) ? root.attributes[declaration] : undefined;
+    const prefix = name.slice(0, colon), namespace = namespaceOf(prefix, node, root);
     if (namespace !== undefined && RELATIONSHIP_NAMESPACES.has(namespace)) return value;
     if (prefix === "r") conventional ??= value;
     else if (namespace === undefined) undeclared ??= value;

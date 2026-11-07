@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { detectFormat, FilePreviewer, RendererRegistry, ZipArchive } from "../dist/index.js";
-import { decodeXmlText } from "../dist/package/package-reader.js";
+import { decodeXmlText, PackageReader } from "../dist/package/package-reader.js";
 import { parseXlsx } from "../dist/parsers/xlsx.js";
 import { isExternalRelationship, ownValue, relationshipId } from "../dist/parsers/ooxml-relationships.js";
 import { parseXml } from "../dist/xml/xml-parser.js";
@@ -21,18 +21,63 @@ test("a %PDF- marker inside a ZIP entry name does not turn an Office document in
   assert.equal(detectFormat("x.bin", "", new TextEncoder().encode("junk %PDF-1.4")), "pdf");
 });
 
-test("error messages do not quote names from the file; the name stays in the cause for diagnostics", () => {
-  const spoof = "Your session has expired. Call 0800 000 000 to restore access.";
-  const duplicate = new Uint8Array(makeZip({ [spoof]: "a" }));
-  // Write the same entry twice by appending a second central record: simplest with two archives' worth of names.
-  const twice = new Uint8Array(makeZip({ [spoof]: "a", [`${spoof}/../x`]: "b" }));
-  assert.throws(() => ZipArchive.open(twice), error => error.code === "invalid-file" && !error.message.includes("session"));
-  try { ZipArchive.open(duplicate).read(spoof + "!"); assert.fail("expected an error"); }
-  catch (error) { assert.equal(error.message, "ZIP entry not found."); assert.equal(error.cause.entry, spoof + "!"); }
-  const encoded = new TextEncoder().encode(`<?xml version="1.0" encoding="${spoof}"?><a/>`);
-  assert.throws(() => decodeXmlText(encoded, "Package part x.xml"), error => error.message === "Package part x.xml uses an unsupported encoding." && error.cause.encoding === spoof);
-  // A well-formed encoding name is still quoted.
+// A name crafted to put the attacker's wording into the viewer's status line.
+const SPOOF = "Your session has expired. Call 0800 000 000 to restore access.";
+/** A ZIP whose two entries both carry SPOOF as their name: written with two names of equal length, then the second
+ * name is replaced in its local and central headers (ZIP checksums cover the data, not the names). */
+function zipWithDuplicateSpoofName() {
+  const other = "x".repeat(SPOOF.length), bytes = Buffer.from(makeZip({ [SPOOF]: "a", [other]: "b" }));
+  let at = 0, replaced = 0;
+  while ((at = bytes.indexOf(other, at)) >= 0) { bytes.write(SPOOF, at, "latin1"); at += other.length; replaced++; }
+  assert.equal(replaced, 2, "the second name appears in its local and its central header");
+  return new Uint8Array(bytes);
+}
+/** No message, and nothing in the error a viewer would display, contains the spoofed wording. */
+const quiet = (expectedMessage, label, value) => error => error?.name === "PreviewError" && error.message === expectedMessage && !error.message.includes("session") && error.cause?.[label] === value;
+
+test("ZIP and package errors do not quote names from the file; the name stays in the cause for diagnostics", () => {
+  // Duplicate entries (a real duplicate, not a different error).
+  assert.throws(() => ZipArchive.open(zipWithDuplicateSpoofName()), quiet("Duplicate ZIP entry.", "entry", SPOOF));
+  // A missing entry, named by the caller from document content.
+  assert.throws(() => ZipArchive.open(new Uint8Array(makeZip({ a: "b" }))).read(SPOOF), quiet("ZIP entry not found.", "entry", SPOOF));
+  // A checksum mismatch on an entry with a spoofing name: change one stored data byte.
+  const stored = Buffer.from(makeZip({ [SPOOF]: "payload" })), dataAt = stored.indexOf("payload");
+  stored[dataAt] ^= 1;
+  assert.throws(() => ZipArchive.open(new Uint8Array(stored)).read(SPOOF), quiet("ZIP entry checksum mismatch.", "entry", SPOOF));
+  // Package parts: missing, and over the size limit.
+  const reader = PackageReader.openZip(new Uint8Array(makeZip({ [SPOOF]: "0123456789" })), { maxPartBytes: 4 });
+  assert.throws(() => reader.readBytes(`${SPOOF}.missing`), quiet("Package part not found.", "part", `${SPOOF}.missing`));
+  assert.throws(() => reader.readBytes(SPOOF), quiet("A package part exceeds the configured size limit.", "part", SPOOF));
+  // Encodings: an arbitrary declared name is not quoted; a well-formed encoding name still is.
+  const encoded = new TextEncoder().encode(`<?xml version="1.0" encoding="${SPOOF}"?><a/>`);
+  assert.throws(() => decodeXmlText(encoded, "Package part x.xml"), quiet("Package part x.xml uses an unsupported encoding.", "encoding", SPOOF));
   assert.throws(() => decodeXmlText(new TextEncoder().encode('<?xml version="1.0" encoding="ISO-8859-1"?><a/>'), "Package part x.xml"), /unsupported encoding ISO-8859-1\./);
+});
+
+test("the viewer's status line shows the generic message, as text, for a file with a spoofing entry name", async t => {
+  class Element {
+    constructor(tag) { this.tagName = tag; this.children = []; this.attributes = {}; this.className = ""; this.textContent = ""; this.hidden = false; this.style = { setProperty() {} }; }
+    setAttribute(name, value) { this.attributes[name] = value; }
+    append(...nodes) { this.children.push(...nodes); }
+    replaceChildren(...nodes) { this.children = nodes; }
+    remove() {}
+    addEventListener() {}
+    dispatchEvent() {}
+    getRootNode() { return document; }
+    get ownerDocument() { return document; }
+  }
+  const document = { nodeType: 9, adoptedStyleSheets: [], defaultView: { CSSStyleSheet: class { replaceSync() {} } }, createElement: tag => new Element(tag) };
+  const saved = globalThis.document;
+  globalThis.document = document;
+  t.after(() => { globalThis.document = saved; });
+  const container = new Element("div");
+  const previewer = new FilePreviewer({ container, file: { name: "report.docx", source: zipWithDuplicateSpoofName() }, toolbar: false });
+  await assert.rejects(previewer.open(), error => error.message === "Duplicate ZIP entry." && error.cause?.entry === SPOOF);
+  const status = container.children.find(child => child.className === "ufp-root").children[1];
+  assert.equal(status.textContent, "Duplicate ZIP entry.");
+  assert.equal(status.className, "ufp-status ufp-status-error");
+  assert.equal(status.children.length, 0, "set as text, not markup");
+  previewer.destroy();
 });
 
 test("relationship ids resolve their prefix; a prefixed TargetMode still marks an external target", () => {
@@ -42,6 +87,15 @@ test("relationship ids resolve their prefix; a prefixed TargetMode still marks a
   assert.equal(relationshipId(node('<a s:id="rId3"/>'), root), "rId3", "strict Office Open XML namespace");
   assert.equal(relationshipId(node('<a q:id="rId4"/>'), root), "rId4", "an undeclared prefix is accepted as before");
   assert.equal(relationshipId(node('<a x:id="decoy"/>'), root), undefined);
+  // Prefixes resolve by the nearest declaration in scope, including elements between the root and the element.
+  const scoped = parseXml(`<w xmlns:x="${R}" xmlns:r="urn:loose"><mid xmlns:x="urn:other"><a x:id="decoy" r:id="rId1"/></mid><b x:id="rId2"/></w>`);
+  assert.equal(relationshipId(scoped.children[0].children[0], scoped), "rId1", "x is rebound to another namespace on <mid>: its id is not a relationship id");
+  assert.equal(relationshipId(scoped.children[1], scoped), "rId2", "outside <mid>, the root's binding of x applies");
+  const intermediate = parseXml(`<w xmlns:r="urn:loose"><mid xmlns:q="${R}"><a q:id="rId3" r:id="rIdLoose"/></mid></w>`);
+  assert.equal(relationshipId(intermediate.children[0].children[0], intermediate), "rId3", "a binding declared on an intermediate element counts");
+  const deep = parseXml(`<w xmlns:x="${R}">${"<g>".repeat(50)}<g xmlns:x="urn:other">${"<g>".repeat(50)}<a x:id="decoy"/>${"</g>".repeat(51)}${"</g>".repeat(50)}</w>`);
+  let target = deep; while (target.children.length) target = target.children[0];
+  assert.equal(relationshipId(target, deep), undefined, "a rebinding far above the element still applies");
   // The conventional r:id is kept even when r is bound loosely (as in hand-written files), but never loses to a decoy.
   const loose = parseXml('<w xmlns:r="urn:r" xmlns:x="urn:x"/>');
   assert.equal(relationshipId(node('<a x:id="decoy" r:id="rId6"/>'), loose), "rId6");
