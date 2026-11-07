@@ -76,6 +76,7 @@ const LIVENESS = ["/liveness-node", "/liveness-page"];
 const { securityFixtures, svgSanitizerCases, evilSvg } = await import(pathToFileURL(join(root, "tests", "helpers", "security-fixtures.mjs")));
 const { makeZip } = await import(pathToFileURL(join(root, "tests", "helpers", "zip.mjs")));
 const { ooxmlFixtures, buildFixture } = await import(pathToFileURL(join(root, "tests", "helpers", "ooxml-fixtures.mjs")));
+const { makeOds } = await import(pathToFileURL(join(root, "tests", "helpers", "odf.mjs")));
 const fixtures = securityFixtures(ATTACKER), svgCases = svgSanitizerCases(ATTACKER);
 
 const S = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
@@ -122,10 +123,15 @@ const viewFiles = {
 // The policy recommended in docs/security.md ("Deployment for untrusted files"); keep the two in sync.
 // The recommended policy (docs/security.md): no 'unsafe-inline' for styles. The nonce page allows one nonce, for the
 // fallback <style> element of browsers without constructable stylesheets (styleNonce).
-const CSP = "default-src 'self'; script-src 'self'; img-src 'self' blob: data:; style-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'";
+const CSP = "default-src 'self'; script-src 'self'; worker-src 'self'; img-src 'self' blob: data:; style-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'";
 const STYLE_NONCE = "ufp-csp-nonce-test";
 // The recommended policy with Trusted Types enforced and no policy allowed: the viewer must use no markup sink.
 const CSP_TRUSTED_TYPES = `${CSP}; require-trusted-types-for 'script'; trusted-types 'none'`;
+// Worker mode under Trusted Types: the application's create() makes the worker URL through its own policy
+// (docs/security.md); that policy is the only one allowed.
+const CSP_TRUSTED_TYPES_WORKER = `${CSP}; require-trusted-types-for 'script'; trusted-types ufp-worker`;
+// About 400,000 explicit cells: several seconds of parsing, for the worker timeout check.
+const slowFiles = { "slow.ods": makeOds({ body: `<table:table table:name="Slow">${`<table:table-row>${'<table:table-cell office:value-type="float" office:value="1.5"><text:p>1.5</text:p></table:table-cell>'.repeat(4)}</table:table-row>`.repeat(100_000)}</table:table>` }) };
 const CSP_NONCE = CSP.replace("style-src 'self'", `style-src 'self' 'nonce-${STYLE_NONCE}'`);
 const cspFiles = Object.fromEntries(ooxmlFixtures.filter(fixture => fixture.options === undefined).map(fixture => [`${fixture.id}.${fixture.kind}`, buildFixture(fixture)]));
 // Pattern fills are drawn with data: SVG backgrounds, which img-src must allow.
@@ -320,12 +326,24 @@ document.addEventListener("securitypolicyviolation", event => violations.push(ev
 const sized = element => { element.style.setProperty("width", "900px"); element.style.setProperty("height", "600px"); return element; };
 /** True when the viewer stylesheet applies to the viewer root (it sets isolation: isolate on .ufp-root). */
 const styled = root => !!root && getComputedStyle(root).isolation === "isolate";
-window.renderAll = async (names) => {
+/** Worker mode as documented: a module worker for dist/worker.js, under Trusted Types through a policy that accepts only that URL. */
+const workerUrl = new URL("/dist/worker.js", location.href).href;
+let workerPolicy;
+window.workersCreated = 0;
+const workerOption = () => ({ worker: { create: () => {
+  window.workersCreated++;
+  if (typeof trustedTypes !== "undefined" && location.pathname === "/csp-tt-worker.html") {
+    workerPolicy ??= trustedTypes.createPolicy("ufp-worker", { createScriptURL: url => { if (url === workerUrl) return url; throw new TypeError("Unexpected worker URL"); } });
+    return new Worker(workerPolicy.createScriptURL(workerUrl), { type: "module" });
+  }
+  return new Worker(workerUrl, { type: "module" });
+} } });
+window.renderAll = async (names, mode = "main-thread") => {
   const host = sized(document.getElementById("host")), results = [];
   for (const name of names) {
     host.replaceChildren(); violations = [];
     const bytes = new Uint8Array(await (await fetch("/fixture/" + encodeURIComponent(name))).arrayBuffer());
-    const viewer = new FilePreviewer({ container: host, file: { name, source: bytes } });
+    const viewer = new FilePreviewer({ container: host, file: { name, source: bytes }, ...(mode === "worker" ? workerOption() : {}) });
     let error; try { await viewer.open(); } catch (e) { error = String(e?.message ?? e); }
     await new Promise(done => setTimeout(done, 300));
     const patterns = [...host.querySelectorAll(".ufp-cell-fill")].filter(element => getComputedStyle(element).backgroundImage.startsWith('url("data:image/svg+xml')).length;
@@ -334,6 +352,26 @@ window.renderAll = async (names) => {
     viewer.destroy();
   }
   return results;
+};
+/**
+ * A slow file in both modes, with a 10 ms timer sampling the main thread: in worker mode with a 1 s parse timeout
+ * the load fails with resource-limit and the page keeps running; in main-thread mode the page is blocked while it parses.
+ */
+window.slowParse = async (mode) => {
+  const host = sized(document.getElementById("host")); host.replaceChildren(); violations = [];
+  const bytes = new Uint8Array(await (await fetch("/fixture/slow.ods")).arrayBuffer());
+  const options = mode === "worker" ? { worker: { ...workerOption().worker, timeout: 1000 } } : {};
+  const viewer = new FilePreviewer({ container: host, file: { name: "slow.ods", source: bytes }, ...options });
+  let last = performance.now(), longestGap = 0;
+  const sampler = setInterval(() => { const now = performance.now(); longestGap = Math.max(longestGap, now - last); last = now; }, 10);
+  const started = performance.now();
+  let error; try { await viewer.open(); } catch (e) { error = { code: e?.code, message: String(e?.message ?? e) }; }
+  const ms = Math.round(performance.now() - started);
+  await new Promise(done => setTimeout(done, 50));
+  clearInterval(sampler);
+  const status = host.querySelector(".ufp-status")?.textContent;
+  viewer.destroy();
+  return { mode, ms, longestGapMs: Math.round(longestGap), error, status, violations };
 };
 /** Stylesheet mechanics: one adopted sheet per document or shadow root, shared and removed with the last viewer. */
 window.styleChecks = async () => {
@@ -379,12 +417,13 @@ const server = createServer(async (request, response) => {
   // No style attribute in the page: the policy blocks inline styles; the test script sizes the host through CSSOM.
   if (url.pathname === "/csp.html" || url.pathname === "/csp-nonce.html") { response.writeHead(200, { "content-type": "text/html", "content-security-policy": url.pathname === "/csp.html" ? CSP : CSP_NONCE }); return response.end('<!doctype html><meta charset="utf-8"><div id="host"></div><script type="module" src="/csp-test.js"></script>'); }
   if (url.pathname === "/reference-sanitizer.js") { response.writeHead(200, { "content-type": "text/javascript" }); return response.end(await readFile(join(root, "tests", "helpers", "svg-sanitizer-reference.mjs"))); }
+  if (url.pathname === "/csp-tt-worker.html") { response.writeHead(200, { "content-type": "text/html", "content-security-policy": CSP_TRUSTED_TYPES_WORKER }); return response.end('<!doctype html><meta charset="utf-8"><div id="host"></div><script type="module" src="/csp-test.js"></script>'); }
   if (url.pathname === "/csp-tt.html") { response.writeHead(200, { "content-type": "text/html", "content-security-policy": CSP_TRUSTED_TYPES }); return response.end('<!doctype html><meta charset="utf-8"><div id="host"></div><script type="module" src="/csp-test.js"></script>'); }
   if (url.pathname === "/csp-test.js") { response.writeHead(200, { "content-type": "text/javascript" }); return response.end(cspScript); }
   if (url.pathname === "/control.svg") { response.writeHead(200, { "content-type": "text/plain" }); return response.end(evilSvg(ATTACKER)); }
   if (url.pathname === "/liveness") { response.writeHead(200); return response.end("ok"); }
   if (url.pathname.startsWith("/fixture/")) {
-    const body = files[decodeURIComponent(url.pathname.slice("/fixture/".length))];
+    const fixtureName = decodeURIComponent(url.pathname.slice("/fixture/".length)), body = files[fixtureName] ?? slowFiles[fixtureName];
     response.writeHead(body ? 200 : 404, { "content-type": "application/octet-stream" }); return response.end(body);
   }
   if (url.pathname.startsWith("/dist/") && !url.pathname.includes("..")) {
@@ -714,6 +753,46 @@ async function run() {
     record({ policy: CSP, results, sheets, fallback: { blocked, allowed }, trustedTypes: { policy: CSP_TRUSTED_TYPES, results: trusted } });
     console.log(`  ${failures.length === before ? "ok  " : "FAIL"} csp: ${results.length} files rendered and styled under the recommended policy (no 'unsafe-inline'); ${patterns} pattern fill(s), ${images} decoded image(s); ${handlerReports} policy reports; Trusted Types enforced: ${trusted.length} files rendered, ${trustedImages} decoded image(s), no violations`);
     console.log(`  ${failures.length === before ? "ok  " : "FAIL"} stylesheet: one shared adopted sheet per root (shadow root included), removed with the last viewer; fallback <style> blocked without a nonce, applied with styleNonce`);
+  }
+
+  step = "worker mode";
+  {
+    // Every file again in worker mode: under the recommended policy, then under Trusted Types with the documented
+    // worker URL policy. Malicious fixtures must stay as harmless as in main-thread mode.
+    const before = failures.length, mark = hits.length, documentFormats = /\.(docx|xlsx|pptx|ods|ots|fods)$/i;
+    const runs = [];
+    for (const [path, label] of [["/csp.html", "recommended policy"], ["/csp-tt-worker.html", "Trusted Types"]]) {
+      const tab = await openTab(`${HOST}${path}`, `worker ${label}`);
+      await waitReady(tab);
+      const results = await evaluate(tab.sessionId, `window.renderAll(${JSON.stringify(Object.keys(files))}, "worker")`);
+      const created = await evaluate(tab.sessionId, "window.workersCreated");
+      for (const result of results) {
+        if (refusedFiles.has(result.name)) check(!!result.error, `worker mode (${label}): ${result.name} should be refused`);
+        else check(!result.error && result.rendered && result.styled, `worker mode (${label}): ${result.name} did not render (${result.error ?? "empty"})`);
+        check(!result.violations.length, `worker mode (${label}): ${result.name} caused violations: ${[...new Set(result.violations)].join("; ")}`);
+      }
+      const documents = Object.keys(files).filter(name => documentFormats.test(name)).length;
+      check(created >= documents, `worker mode (${label}): ${created} workers created for ${documents} documents`);
+      runs.push({ label, files: results.length, created, decoded: results.reduce((sum, result) => sum + result.decoded, 0), results });
+      checkExceptions();
+      await closeTab(tab);
+    }
+    // The parse timeout stops a slow parse; the main thread is not blocked meanwhile. Main-thread mode for comparison.
+    const tab = await openTab(`${HOST}/csp.html`, "worker timeout");
+    await waitReady(tab);
+    const worker = await evaluate(tab.sessionId, "window.slowParse('worker')");
+    const main = await evaluate(tab.sessionId, "window.slowParse('main-thread')");
+    check(worker.error?.code === "resource-limit" && /did not finish within 1,000 ms/.test(worker.error.message), `the slow worker parse was not stopped by the timeout (${JSON.stringify(worker)})`);
+    check(worker.ms < 5000, `stopping the slow worker parse took ${worker.ms} ms`);
+    check(worker.longestGapMs < 500, `the main thread was blocked for ${worker.longestGapMs} ms during the worker parse`);
+    check(!main.error, `the slow file did not render in main-thread mode (${JSON.stringify(main.error)})`);
+    checkExceptions();
+    await closeTab(tab);
+    await wait(500);
+    check(hits.length === mark, `attacker server received ${hits.slice(mark).join(", ")}`);
+    check(!(await evaluate(mainTab.sessionId, "window.pwned()")), "worker mode: a payload wrote to the host origin's localStorage");
+    record({ runs, timeout: { worker, main } });
+    console.log(`  ${failures.length === before ? "ok  " : "FAIL"} worker mode: ${runs.map(run => `${run.files} files under the ${run.label} (${run.created} workers, ${run.decoded} decoded images)`).join("; ")}; no violations; slow file stopped by the 1 s timeout after ${worker.ms} ms with the main thread blocked at most ${worker.longestGapMs} ms (main-thread mode: ${main.ms} ms, blocked up to ${main.longestGapMs} ms)`);
   }
 
   // Final accounting, after every tab opened by the tests has closed.

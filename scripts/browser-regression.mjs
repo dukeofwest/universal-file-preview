@@ -13,6 +13,8 @@
 // Options: --dir <folder>      results folder (default: <os temp>/ufp-browser-regression)
 //          --browser <path>    browser executable (default: UFP_BROWSER, then Edge/Chrome)
 //          --locales <a,b>     browser locales (default: en-US,de-DE)
+//          --worker            render in worker mode (dist/worker.js as a module worker); comparing a
+//                              worker-mode run with a main-thread baseline checks that both modes render alike
 //
 // Screenshots depend on installed fonts and the browser build, so baselines are only
 // comparable on the machine and browser that recorded them. Never commit them.
@@ -32,14 +34,15 @@ const CASE_TIMEOUT_MS = 30_000;
 
 function usage(message) {
   if (message) console.error(`error: ${message}`);
-  console.error("usage: node scripts/browser-regression.mjs <record|compare> [--dir <folder>] [--browser <path>] [--locales en-US,de-DE]");
+  console.error("usage: node scripts/browser-regression.mjs <record|compare> [--dir <folder>] [--browser <path>] [--locales en-US,de-DE] [--worker]");
   process.exit(2);
 }
 
 const [mode, ...rest] = process.argv.slice(2);
 if (mode !== "record" && mode !== "compare") usage(mode ? `unknown mode ${mode}` : "missing mode");
-const options = { dir: join(tmpdir(), "ufp-browser-regression"), browser: process.env.UFP_BROWSER, locales: ["en-US", "de-DE"] };
+const options = { dir: join(tmpdir(), "ufp-browser-regression"), browser: process.env.UFP_BROWSER, locales: ["en-US", "de-DE"], worker: false };
 for (let index = 0; index < rest.length; index += 2) {
+  if (rest[index] === "--worker") { options.worker = true; index -= 1; continue; }
   const [flag, value] = [rest[index], rest[index + 1]];
   if (value === undefined) usage(`${flag} needs a value`);
   if (flag === "--dir") options.dir = resolve(value);
@@ -84,10 +87,12 @@ const harness = `<!doctype html><html><head><meta charset="utf-8"><title>regress
 <body><div id="viewer"></div><script type="module">
 import { FilePreviewer } from "/dist/index.js";
 const params = new URL(location.href).searchParams, name = params.get("file"), view = params.get("view");
+// Worker mode: documents are parsed by dist/worker.js; a worker that fails to start fails the case (no fallback).
+const worker = params.get("worker") === "1" ? { worker: { create: () => new Worker("/dist/worker.js", { type: "module" }) } } : {};
 const frames = async count => { for (let i = 0; i < count; i++) await new Promise(r => requestAnimationFrame(r)); };
 window.__result = (async () => {
   const container = document.getElementById("viewer");
-  const viewer = new FilePreviewer({ container, file: { name, source: "/files/" + encodeURIComponent(name) } });
+  const viewer = new FilePreviewer({ container, file: { name, source: "/files/" + encodeURIComponent(name) }, ...worker });
   let error = null;
   try { await viewer.open(); } catch (e) { error = (e.code ?? e.name) + ": " + e.message; }
   await document.fonts.ready; await frames(2);
@@ -176,7 +181,7 @@ async function renderCase(browser, port, file, view) {
   try {
     const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
     await browser.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await browser.send("Page.navigate", { url: `http://127.0.0.1:${port}/harness.html?file=${encodeURIComponent(file)}&view=${encodeURIComponent(view)}` }, sessionId);
+    await browser.send("Page.navigate", { url: `http://127.0.0.1:${port}/harness.html?file=${encodeURIComponent(file)}&view=${encodeURIComponent(view)}${options.worker ? "&worker=1" : ""}` }, sessionId);
     const deadline = Date.now() + CASE_TIMEOUT_MS;
     let result;
     while (!result) {
@@ -255,7 +260,7 @@ async function run() {
   const files = await collectFiles(), server = await startServer(files), port = server.address().port;
   const output = join(options.dir, mode === "record" ? "baseline" : "current");
   await rm(output, { recursive: true, force: true });
-  const manifest = { browser: "", locales: options.locales, viewer: VIEWER, commit: gitCommit(), created: new Date().toISOString(), cases: {} };
+  const manifest = { browser: "", locales: options.locales, viewer: VIEWER, mode: options.worker ? "worker" : "main-thread", commit: gitCommit(), created: new Date().toISOString(), cases: {} };
   try {
     for (const locale of options.locales) {
       const browser = await launchBrowser(locale);
@@ -280,7 +285,7 @@ async function run() {
   } finally { server.close(); }
   await writeFile(join(output, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   const count = Object.keys(manifest.cases).length;
-  if (mode === "record") { console.log(`Recorded ${count} cases with ${manifest.browser} at commit ${manifest.commit} into ${output}`); return 0; }
+  if (mode === "record") { console.log(`Recorded ${count} cases (${manifest.mode} mode) with ${manifest.browser} at commit ${manifest.commit} into ${output}`); return 0; }
   return compare(manifest, output, count);
 }
 
@@ -298,7 +303,7 @@ async function compare(current, output, count) {
     const pixels = changed.includes("screenshot") ? `\n    screenshot: ${await describePixelDifference(`${before.files}.png`, `${after.files}.png`)}` : "";
     problems.push(`${key}: ${changed.join(", ")} differ${pixels}\n    baseline: ${before.files}.*\n    current:  ${after.files}.*`);
   }
-  if (!problems.length) { console.log(`All ${count} cases identical to the baseline recorded at commit ${baseline.commit}.`); return 0; }
+  if (!problems.length) { console.log(`All ${count} cases (${current.mode} mode) identical to the baseline recorded at commit ${baseline.commit} (${baseline.mode ?? "main-thread"} mode).`); return 0; }
   console.error(`${problems.length} of ${count} cases differ from the baseline recorded at commit ${baseline.commit}:\n${problems.map(problem => `  ${problem}`).join("\n")}`);
   console.error(`Results: ${output}`);
   return 1;

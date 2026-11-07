@@ -28,7 +28,7 @@ Treat every document as untrusted input. The implementation applies the limits a
 
 ### Known gaps
 
-- **Parsing runs on the page's main thread by default.** The limits above are meant to prevent a small file from causing disproportionate work (they were checked against the crafted cases in the test suite, not proven complete), but processing time still grows with the size of the file: a crafted file of a few megabytes, like a large legitimate one, can keep the page unresponsive for several seconds, and closing or replacing the viewer cannot interrupt a main-thread parse. **Worker mode** (the `worker` option, see the [API reference](./api-reference.md#worker-mode)) moves parsing of the document formats into a Web Worker: the page stays responsive, a parse that takes longer than the timeout (30 seconds by default) is stopped by terminating the worker, and closing or replacing the viewer stops it too. Receiving and rendering a large result still runs on the main thread (for the largest accepted workbooks, a few seconds), and a worker shares the page's process, so it does not lower peak memory use.
+- **Parsing runs on the page's main thread by default.** The limits above are meant to prevent a small file from causing disproportionate work (they were checked against the crafted cases in the test suite, not proven complete), but processing time still grows with the size of the file: a crafted file of a few megabytes, like a large legitimate one, can keep the page unresponsive for several seconds, and closing or replacing the viewer cannot interrupt a main-thread parse. **Worker mode** (the `worker` option, see the [API reference](./api-reference.md#worker-mode)) moves parsing of the document formats into a Web Worker: the page stays responsive, a parse that takes longer than the timeout (30 seconds by default) is stopped by terminating the worker, and closing or replacing the viewer stops it too. Receiving and rendering a large result still runs on the main thread (measured for the largest accepted workbooks: about 0.6 to 2.4 seconds, against 4 to 10 seconds of blocking in main-thread mode), and a worker shares the page's process: worker mode needs more memory at its peak than main-thread mode, not less.
 - **Browser image decoding** runs in the browser process; this package cannot isolate the page from browser codec vulnerabilities. The pixel limits rely on the dimensions in the image header.
 - **The limits are fixed.** They cannot yet be changed by the application.
 
@@ -47,7 +47,7 @@ Because of these gaps, previewing untrusted uploads can still make the browser t
   A starting point for the page that hosts the viewer, to adapt to your application:
 
   ```
-  Content-Security-Policy: default-src 'self'; script-src 'self'; img-src 'self' blob: data:; style-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; worker-src 'self'; img-src 'self' blob: data:; style-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'
   ```
 
   Not allowing remote origins in `img-src` and `font-src` also prevents a document from making the browser contact a remote server through CSS, should such a bug exist.

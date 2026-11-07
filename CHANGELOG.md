@@ -2,16 +2,27 @@
 
 ## Unreleased
 
-- **Worker mode:** the new `worker` option parses DOCX, XLSX, PPTX, ODS, OTS, and FODS files in a Web Worker that the application creates from the new `./worker` entry point (`dist/worker.js`). The page stays responsive while a document is parsed; a parse that exceeds the timeout (30 seconds by default) is stopped and fails with `resource-limit`; replacing or destroying the viewer stops a running parse. `fallback: "main-thread"` parses on the main thread when the worker cannot be started. Results from the worker are checked before rendering. Without the option, parsing runs on the main thread as before.
+This release adds an optional worker mode, limits the size of every parsed document, and lets the viewer run under a strict Content Security Policy and Trusted Types. It is a minor version because the public API gains options and an entry point; existing code works without changes. Some limits are stricter than in 0.2.x and can refuse files that 0.2.x accepted (see Compatibility). Upgrading is recommended for applications that preview files from untrusted sources.
+
+### Added
+
+- **Worker mode:** the new `worker` option parses DOCX, XLSX, PPTX, ODS, OTS, and FODS files in a Web Worker that the application creates from the new `./worker` entry point (`dist/worker.js`). The page stays responsive while a document is parsed; a parse that exceeds the timeout (30 seconds by default) is stopped and fails with `resource-limit`; replacing or destroying the viewer stops a running parse. `fallback: "main-thread"` parses on the main thread when the worker cannot be started. Results from the worker are checked before rendering. Without the option, parsing runs on the main thread as before. The installation guide describes the setup for bundlers and without one.
 - `load()` accepts an optional second argument with an `AbortSignal` (`load(file, { signal })`); a cancelled load shows "Preview loading was cancelled." instead of staying at "Loading preview...".
-- **Security:** the parsed document model of every format (DOCX, PPTX, XLSX, ODS, OTS, FODS) is now limited while it is built: at most 6,000,000 objects and arrays, 67,108,864 UTF-16 code units of text, 256 MiB of image data, and a nesting depth of 64. A document that exceeds a limit is refused with a `resource-limit` error instead of being shown.
-- **Compatibility:** these limits can refuse some files that 0.2.x accepted:
+- The `styleNonce` option sets the nonce of the viewer's `<style>` element in browsers without constructable stylesheets.
+
+### Security
+
+- The parsed document model of every format (DOCX, PPTX, XLSX, ODS, OTS, FODS) is now limited while it is built: at most 6,000,000 objects and arrays, 67,108,864 UTF-16 code units of text, 256 MiB of image data, and a nesting depth of 64. A document that exceeds a limit is refused with a `resource-limit` error instead of being shown.
+- The viewer stylesheet no longer needs `'unsafe-inline'` in a Content Security Policy: in browsers with constructable stylesheets (tested in Edge, Chrome and Firefox) it is adopted by the container's document or shadow root through `adoptedStyleSheets`, shared by all viewers there and removed with the last one. Other browsers get a `<style>` element in the container as before.
+- The viewer uses no markup sink: its icons are built with DOM methods instead of `innerHTML`, and SVG images are sanitized without the browser's `DOMParser` (parsed by the library's own XML parser, reduced to the same allowlist as before and written out with escaping). It therefore works under Trusted Types (`require-trusted-types-for 'script'`) without a policy, and sanitizing malicious SVG no longer causes Content Security Policy reports.
+
+### Compatibility
+
+- The new limits can refuse some files that 0.2.x accepted:
   - Spreadsheets (XLSX and OpenDocument) may have at most 500,000 cells (previously 1,000,000). A workbook with more cells is refused with a `resource-limit` error.
   - XLSX text is counted more strictly: a cell's formatted display text now counts in addition to its value, as do the texts of hyperlinks, comments and other sheet content. A workbook in which long texts are repeated in many cells can therefore be refused although 0.2.2 accepted it (for example, a 32,767-character shared string may now be used by at most 1,023 cells, where 0.2.2 allowed 2,048).
-- The viewer stylesheet no longer needs `'unsafe-inline'` in a Content Security Policy: in browsers with constructable stylesheets (tested in Edge, Chrome and Firefox) it is adopted by the container's document or shadow root through `adoptedStyleSheets`, shared by all viewers there and removed with the last one. Other browsers get a `<style>` element in the container as before; the new `styleNonce` option sets its nonce. The viewer's icons are built with DOM methods instead of `innerHTML`.
-- SVG images are sanitized without the browser's `DOMParser`: they are parsed by the library's own XML parser, reduced to the same allowlist as before and written out with escaping. The viewer therefore uses no markup sink and works under Trusted Types (`require-trusted-types-for 'script'`) without a policy, and sanitizing malicious SVG no longer causes Content Security Policy reports.
-- **Compatibility:** SVG images with a DOCTYPE (with or without entity declarations) are no longer shown; 0.2.x expanded internal entities and removed the DOCTYPE. SVG containing characters XML does not allow is not shown either.
-- **Compatibility:** in browsers with constructable stylesheets the viewer no longer adds a `<style>` element to the container, and its stylesheet now comes after all of the page's own stylesheets in the cascade. Application rules that override `ufp-*` classes from a stylesheet placed after the viewer need a more specific selector.
+- SVG images with a DOCTYPE (with or without entity declarations) are no longer shown; 0.2.x expanded internal entities and removed the DOCTYPE. SVG containing characters XML does not allow is not shown either.
+- In browsers with constructable stylesheets the viewer no longer adds a `<style>` element to the container, and its stylesheet now comes after all of the page's own stylesheets in the cascade. Application rules that override `ufp-*` classes from a stylesheet placed after the viewer need a more specific selector.
 
 ## 0.2.2 - 2026-11-06
 

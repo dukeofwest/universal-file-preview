@@ -41,7 +41,7 @@ With `worker` set, the viewer parses the built-in document formats in a worker t
 - `startupTimeout` limits the time from `create()` until the worker is ready. `timeout` limits the time from sending a file to the worker until its result arrives; when it expires, the worker is terminated and the load fails with `resource-limit`. Receiving, checking, and rendering the result happen afterwards on the main thread and are not covered by a timeout.
 - `fallback` decides what happens when the worker cannot be created or does not become ready (for example, a Content Security Policy blocks it): `"error"` fails the load with a `PreviewError`; `"main-thread"` parses on the main thread instead, without a timeout. It never applies to cancelled loads or to failures after the worker was ready.
 - Every result from the worker is checked before rendering: the message format, the document model's structure, and the same output limits as in main-thread mode, so both modes accept the same files.
-- A worker runs in the same browser process as the page: worker mode keeps the page responsive and makes parsing interruptible, but it does not reduce peak memory use.
+- A worker runs in the same browser process as the page: worker mode keeps the page responsive and makes parsing interruptible, but it takes somewhat longer overall and needs more memory at its peak, because the worker's copy of a document and the page's copy exist at the same time (measured for the largest accepted workbooks: about 0.55 to 0.9 GB above idle in worker mode, against about 0.4 GB in main-thread mode).
 
 ```ts
 const viewer = new FilePreviewer({
