@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-11-07
 
 This release adds an optional worker mode, limits the size of every parsed document, and lets the viewer run under a strict Content Security Policy and Trusted Types. It is a minor version because the public API gains options and an entry point; existing code works without changes. Some limits are stricter than in 0.2.x and can refuse files that 0.2.x accepted (see Compatibility). Upgrading is recommended for applications that preview files from untrusted sources.
 
