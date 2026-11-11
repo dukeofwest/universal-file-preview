@@ -78,6 +78,8 @@ export const DIAGNOSTIC_MESSAGES = {
   "odf.bounds.clipped": fixed("warning", "Content beyond row 1,048,576 or column XFD is not shown."),
   "odf.unsupported.drawings": { severity: "warning", message: count => `${number(count)} ${plural(count, "image or shape is", "images or shapes are")} not shown.` },
   "odf.unsupported.charts": { severity: "warning", message: count => `${number(count)} ${plural(count, "chart is", "charts are")} not shown.` },
+  "odf.template": fixed("warning", "This file is a template; it is shown as saved, and its placeholders are not filled in."),
+  "odf.unsupported.text-content": { severity: "warning", message: count => `${number(count)} ${plural(count, "kind of content is", "kinds of content are")} not shown in this preview.` },
   "odf.unsupported.conditional-formatting": fixed("warning", "Conditional formatting is not applied."),
   "odf.unsupported.pivot": fixed("info", "Pivot tables are shown as their saved cell values."),
   "odf.external-links": fixed("warning", "This workbook references external data; saved values are shown and nothing is fetched."),

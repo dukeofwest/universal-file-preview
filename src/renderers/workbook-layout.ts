@@ -64,8 +64,13 @@ export function allowsGeneralShrink(cell: ExtendedSpreadsheetCell, style: Extend
 
 /** Diagnostics for the notice above the grid: accuracy first, then warnings; info is not shown. */
 export function noticeDiagnostics(workbook: ExtendedWorkbook): PreviewDiagnostic[] {
-  const diagnostics = workbook.diagnostics ?? [];
-  return [...diagnostics.filter(entry => entry.severity === "accuracy"), ...diagnostics.filter(entry => entry.severity === "warning")];
+  return noticeEntries(workbook.diagnostics);
+}
+
+/** The same selection for any model that carries diagnostics (text documents as well as workbooks). */
+export function noticeEntries(diagnostics: readonly PreviewDiagnostic[] | undefined): PreviewDiagnostic[] {
+  const entries = diagnostics ?? [];
+  return [...entries.filter(entry => entry.severity === "accuracy"), ...entries.filter(entry => entry.severity === "warning")];
 }
 
 /** Accessible name of a grid cell: reference and shown text, plus the currency and saved-result facts sighted users cannot see. */

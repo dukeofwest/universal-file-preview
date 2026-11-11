@@ -90,8 +90,10 @@ export class DocxRenderer implements FileRenderer {
   }
 }
 
-function renderParagraph(paragraph: Paragraph, imageUrls: string[], page?: WordPageLayout, pageNumber = 1): HTMLParagraphElement {
-  const p = document.createElement(paragraph.kind === "heading" ? "h2" : "p");
+function renderParagraph(paragraph: Paragraph, imageUrls: string[], page?: WordPageLayout, pageNumber = 1): HTMLElement {
+  // A heading whose document states its outline level becomes that level, capped at h6; DOCX sets no
+  // level, so its headings stay h2 exactly as before.
+  const p = document.createElement(paragraph.kind === "heading" ? `h${Math.min(paragraph.headingLevel ?? 2, 6)}` : "p");
   p.style.textAlign = paragraph.alignment ?? "left";
   p.style.fontSize = "inherit"; p.style.fontWeight = "inherit";
   if (paragraph.defaultRun?.fontFamily) p.style.fontFamily = fontStack(paragraph.defaultRun.fontFamily);

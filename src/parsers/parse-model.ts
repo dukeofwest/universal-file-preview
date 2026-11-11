@@ -1,5 +1,7 @@
 import { parseFods } from "./odf/flat.js";
 import { parseOds } from "./odf/ods.js";
+import { parseFodt } from "./odf/odt-flat.js";
+import { parseOdt } from "./odf/odt.js";
 import { parseDocx, parsePptx } from "./ooxml.js";
 import { parseXlsx } from "./xlsx.js";
 import type { DocumentModel, WorkerFormat } from "../worker/protocol.js";
@@ -23,6 +25,8 @@ export function parseModel(format: WorkerFormat, bytes: Uint8Array, name: string
     case "xlsx": return parseXlsx(bytes, name, { locale: options.locale });
     case "ods": case "ots": return parseOds(bytes, name, signal);
     case "fods": return parseFods(bytes, name, signal);
+    case "odt": case "ott": return parseOdt(bytes, name, signal);
+    case "fodt": return parseFodt(bytes, name, signal);
   }
 }
 

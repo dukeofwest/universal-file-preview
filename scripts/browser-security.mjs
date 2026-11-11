@@ -761,7 +761,7 @@ async function run() {
   {
     // Every file again in worker mode: under the recommended policy, then under Trusted Types with the documented
     // worker URL policy. Malicious fixtures must stay as harmless as in main-thread mode.
-    const before = failures.length, mark = hits.length, documentFormats = /\.(docx|xlsx|pptx|ods|ots|fods)$/i;
+    const before = failures.length, mark = hits.length, documentFormats = /\.(docx|xlsx|pptx|ods|ots|fods|odt|ott|fodt)$/i;
     const runs = [];
     for (const [path, label] of [["/csp.html", "recommended policy"], ["/csp-tt-worker.html", "Trusted Types"]]) {
       const tab = await openTab(`${HOST}${path}`, `worker ${label}`);

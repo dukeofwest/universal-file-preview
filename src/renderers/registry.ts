@@ -4,6 +4,7 @@ import { PreviewError } from "../errors.js";
 import { ImageRenderer } from "./image-renderer.js";
 import { DocxRenderer, PptxRenderer, XlsxRenderer } from "./ooxml-renderers.js";
 import { OdsRenderer } from "./ods-renderer.js";
+import { OdtRenderer } from "./odt-renderer.js";
 import type { RendererContext, RendererInstance } from "./types.js";
 import type { DocumentModel } from "../worker/protocol.js";
 
@@ -14,7 +15,7 @@ export interface ParsedModelRenderer extends FileRenderer { renderParsed(model: 
  * render through render(), on the main thread, even if they happen to have a renderParsed method.
  */
 export function isBuiltInDocumentRenderer(renderer: FileRenderer): renderer is ParsedModelRenderer {
-  return renderer instanceof DocxRenderer || renderer instanceof PptxRenderer || renderer instanceof XlsxRenderer || renderer instanceof OdsRenderer;
+  return renderer instanceof DocxRenderer || renderer instanceof PptxRenderer || renderer instanceof XlsxRenderer || renderer instanceof OdsRenderer || renderer instanceof OdtRenderer;
 }
 
 export class RendererRegistry {
@@ -37,6 +38,6 @@ export class RendererRegistry {
 export function createDefaultRendererRegistry(): RendererRegistry {
   const registry = new RendererRegistry();
   registry.register(new ImageRenderer()); registry.register(new DocxRenderer()); registry.register(new XlsxRenderer()); registry.register(new PptxRenderer());
-  registry.register(new OdsRenderer());
+  registry.register(new OdsRenderer()); registry.register(new OdtRenderer());
   return registry;
 }

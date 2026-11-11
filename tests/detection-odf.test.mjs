@@ -31,10 +31,12 @@ test("ODF spreadsheet packages are detected from their mimetype entry", () => {
   assert.equal(detectFormat("template.ods", "", ots), "ots");
 });
 
-test("other OpenDocument media types keep the previous ZIP behaviour", () => {
-  assert.equal(detectFormat("letter.odt", "", odt), "unknown");
-  assert.equal(detectFormat("letter.docx", "", odt), "docx");
-  assert.equal(detectFormat("letter.zip", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", odt), "xlsx");
+test("text packages are identified by their media type, and other kinds keep the previous ZIP behaviour", () => {
+  // Changed in milestone 3.1: the text media types are now read from the package, so the name and a
+  // misleading MIME type no longer decide, exactly as for spreadsheets above.
+  assert.equal(detectFormat("letter.odt", "", odt), "odt");
+  assert.equal(detectFormat("letter.docx", "", odt), "odt");
+  assert.equal(detectFormat("letter.zip", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", odt), "odt");
   assert.equal(detectFormat("x.zip", "", mimetypeHeader({ content: "application/zip" })), "unknown");
 });
 

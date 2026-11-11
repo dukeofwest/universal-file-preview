@@ -12,7 +12,7 @@ import { WorkerClient } from "../dist/worker/worker-client.js";
 import { isBuiltInDocumentRenderer, createDefaultRendererRegistry } from "../dist/renderers/registry.js";
 import { writeDemoSamples } from "../scripts/demo-samples.mjs";
 import { buildFixture, ooxmlFixtures } from "./helpers/ooxml-fixtures.mjs";
-import { makeOds, makeFods } from "./helpers/odf.mjs";
+import { makeOds, makeFods, makeOdt, OTT_MEDIA_TYPE } from "./helpers/odf.mjs";
 import { securityFixtures } from "./helpers/security-fixtures.mjs";
 
 // The parser worker (Phase 2 step 6): the worker logic with a fake scope, the transfer preparation, and the
@@ -40,6 +40,9 @@ async function documents() {
   } finally { rmSync(directory, { recursive: true, force: true }); }
   const body = '<table:table table:name="S"><table:table-row><table:table-cell office:value-type="string"><text:p>ods</text:p></table:table-cell></table:table-row></table:table>';
   list.push({ id: "ods", format: "ods", bytes: makeOds({ body }), name: "s.ods" }, { id: "fods", format: "fods", bytes: makeFods({ body }), name: "s.fods" });
+  const textBody = '<text:h text:outline-level="1">Title</text:h><text:p>Body <text:span text:style-name="T1">bold</text:span></text:p>';
+  const automatic = '<style:style style:name="T1" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>';
+  list.push({ id: "odt", format: "odt", bytes: makeOdt({ body: textBody, automatic }), name: "letter.odt" }, { id: "ott", format: "ott", bytes: makeOdt({ body: textBody, automatic, mimetype: OTT_MEDIA_TYPE }), name: "letter.ott" });
   for (const [name, fixture] of Object.entries(securityFixtures("http://attacker.invalid:9"))) if (["pptx", "xlsx", "docx"].includes(fixture.kind)) list.push({ id: name, format: fixture.kind, bytes: new Uint8Array(fixture.bytes), name });
   return list;
 }
@@ -134,7 +137,7 @@ test("in a worker thread, transferred buffers are detached on the worker side af
 
 test("only the library's document renderers render worker models; renderParsed refuses a model of another kind", () => {
   const registry = createDefaultRendererRegistry();
-  for (const format of ["docx", "xlsx", "pptx", "ods", "ots", "fods"]) assert.equal(isBuiltInDocumentRenderer(registry.get(format)), true, format);
+  for (const format of ["docx", "xlsx", "pptx", "ods", "ots", "fods", "odt", "ott"]) assert.equal(isBuiltInDocumentRenderer(registry.get(format)), true, format);
   assert.equal(isBuiltInDocumentRenderer(registry.get("png")), false);
   const custom = { formats: ["docx"], render() { return { element: {} }; }, renderParsed() { return { element: {} }; } };
   assert.equal(isBuiltInDocumentRenderer(custom), false, "a custom renderer is never given a worker model");

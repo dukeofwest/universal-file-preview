@@ -41,10 +41,16 @@ const odsZip = new Uint8Array(makeZip({
   "META-INF/manifest.xml": "<manifest:manifest/>",
   "content.xml": "<office:document-content/>",
 }));
+const odtZip = new Uint8Array(makeZip({
+  mimetype: "application/vnd.oasis.opendocument.text",
+  "META-INF/manifest.xml": "<manifest:manifest/>",
+  "content.xml": "<office:document-content/>",
+}));
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const ODS = "application/vnd.oasis.opendocument.spreadsheet";
+const ODT = "application/vnd.oasis.opendocument.text";
 
 // -----------------------------------------------------------------------------------------------
 // 1. Detection matrix (spec §8.1)
@@ -121,6 +127,18 @@ const detectionCases = [
   ["ODS package with .ods (changed in M7)", "sheet.ods", "", odsZip, "ods"],
   ["ODS package with ODS MIME (changed in M7)", "sheet.ods", ODS, odsZip, "ods"],
   ["ODS package with .zip (changed in M7)", "data.zip", "", odsZip, "ods"],
+
+  // OpenDocument text: "unknown" until milestone 3.1 added the formats. The master document,
+  // web template and master template types stay "unknown": this library does not read them.
+  ["ODT extension only (changed in 3.1)", "letter.odt", "", undefined, "odt"],
+  ["OTT extension only (changed in 3.1)", "letter.ott", "", undefined, "ott"],
+  ["FODT extension only (changed in 3.1)", "letter.fodt", "", undefined, "fodt"],
+  ["ODT MIME without bytes (changed in 3.1)", "letter.odt", ODT, undefined, "odt"],
+  ["ODT package with .odt (changed in 3.1)", "letter.odt", "", odtZip, "odt"],
+  ["ODT package with .zip (changed in 3.1)", "data.zip", "", odtZip, "odt"],
+  ["ODT package named .docx (changed in 3.1)", "letter.docx", "", odtZip, "odt"],
+  ["master document extension stays unknown", "book.odm", "", undefined, "unknown"],
+  ["web template extension stays unknown", "page.oth", "", undefined, "unknown"],
 ];
 
 /**
@@ -142,7 +160,7 @@ const detectionQuirks = [
 ];
 
 // "ods", "ots" and "fods" were added to FileFormat in M7 (decision D1).
-const knownFormats = new Set(["pdf", "docx", "xlsx", "pptx", "doc", "xls", "ppt", "gif", "png", "jpeg", "webp", "svg", "ods", "ots", "fods", "unknown"]);
+const knownFormats = new Set(["pdf", "docx", "xlsx", "pptx", "doc", "xls", "ppt", "gif", "png", "jpeg", "webp", "svg", "ods", "ots", "fods", "odt", "ott", "fodt", "unknown"]);
 const detect = ([, name, mime, input]) => input === undefined ? detectFormat(name, mime) : detectFormat(name, mime, input);
 
 test("M0 detection matrix records current detectFormat behaviour", () => {

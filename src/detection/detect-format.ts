@@ -1,13 +1,15 @@
-export type FileFormat = "pdf" | "docx" | "xlsx" | "pptx" | "doc" | "xls" | "ppt" | "gif" | "png" | "jpeg" | "webp" | "svg" | "ods" | "ots" | "fods" | "unknown";
+export type FileFormat = "pdf" | "docx" | "xlsx" | "pptx" | "doc" | "xls" | "ppt" | "gif" | "png" | "jpeg" | "webp" | "svg" | "ods" | "ots" | "fods" | "odt" | "ott" | "fodt" | "unknown";
 
 const extensions: Readonly<Record<string, FileFormat>> = {
   pdf: "pdf", docx: "docx", xlsx: "xlsx", pptx: "pptx", doc: "doc", xls: "xls", ppt: "ppt",
   gif: "gif", png: "png", jpg: "jpeg", jpeg: "jpeg", webp: "webp", svg: "svg",
-  ods: "ods", ots: "ots", fods: "fods",
+  ods: "ods", ots: "ots", fods: "fods", odt: "odt", ott: "ott", fodt: "fodt",
 };
 
 const ODS_MEDIA_TYPE = "application/vnd.oasis.opendocument.spreadsheet";
 const OTS_MEDIA_TYPE = "application/vnd.oasis.opendocument.spreadsheet-template";
+const ODT_MEDIA_TYPE = "application/vnd.oasis.opendocument.text";
+const OTT_MEDIA_TYPE = "application/vnd.oasis.opendocument.text-template";
 const ODF_OFFICE_NAMESPACE = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
 
 const byMime: Readonly<Record<string, FileFormat>> = {
@@ -17,11 +19,13 @@ const byMime: Readonly<Record<string, FileFormat>> = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
-  [ODS_MEDIA_TYPE]: "ods", [OTS_MEDIA_TYPE]: "ots",
+  [ODS_MEDIA_TYPE]: "ods", [OTS_MEDIA_TYPE]: "ots", [ODT_MEDIA_TYPE]: "odt", [OTT_MEDIA_TYPE]: "ott",
 };
 
 /** OpenDocument media types this library can identify inside a package's mimetype entry. */
-const odfPackageFormats: Readonly<Record<string, FileFormat>> = { [ODS_MEDIA_TYPE]: "ods", [OTS_MEDIA_TYPE]: "ots" };
+const odfPackageFormats: Readonly<Record<string, FileFormat>> = {
+  [ODS_MEDIA_TYPE]: "ods", [OTS_MEDIA_TYPE]: "ots", [ODT_MEDIA_TYPE]: "odt", [OTT_MEDIA_TYPE]: "ott",
+};
 
 export function detectFormat(name: string, mimeType = "", bytes?: Uint8Array): FileFormat {
   const mime = mimeType.toLowerCase().split(";")[0]?.trim() ?? "";
@@ -40,6 +44,7 @@ export function detectFormat(name: string, mimeType = "", bytes?: Uint8Array): F
       return fromZipName(name) === "unknown" ? lookup(byMime, mime) ?? "unknown" : fromZipName(name);
     }
     if ((extensionOf(name) === "fods" || mime === ODS_MEDIA_TYPE) && isFlatSpreadsheet(bytes)) return "fods";
+    if ((extensionOf(name) === "fodt" || mime === ODT_MEDIA_TYPE) && isFlatText(bytes)) return "fodt";
     const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 256))).trimStart();
     if (/^(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(prefix)) return "svg";
     if (ascii(bytes, 0, Math.min(bytes.length, 1024)).includes("%PDF-")) return "pdf";
@@ -74,6 +79,17 @@ function sniffOdfMimetype(bytes: Uint8Array): string | undefined {
 function isFlatSpreadsheet(bytes: Uint8Array): boolean {
   const text = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
   return text.includes(ODF_OFFICE_NAMESPACE) && text.includes(ODS_MEDIA_TYPE);
+}
+
+/**
+ * A flat OpenDocument text document declares the office namespace and the text media type near its start.
+ * The media type is matched as a whole attribute value, because "...opendocument.text" is a prefix of the
+ * master-document, web-template and master-template types, which this library does not read.
+ */
+const flatTextMediaType = new RegExp(`mimetype\\s*=\\s*"(?:${ODT_MEDIA_TYPE}|${OTT_MEDIA_TYPE})"`.replace(/\./g, "\\."));
+function isFlatText(bytes: Uint8Array): boolean {
+  const text = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
+  return text.includes(ODF_OFFICE_NAMESPACE) && flatTextMediaType.test(text);
 }
 
 /** Own-property lookup: names and MIME types are untrusted and must not resolve inherited properties such as "constructor". */
