@@ -5,8 +5,8 @@ This document records the release procedure. Each release must be validated and 
 ## Current package metadata
 
 - Name: `@dukeofwest/universal-file-preview`
-- Current version in this repository: `0.4.0` (prepared, not yet published)
-- npm status: `0.3.0` is published publicly at [@dukeofwest/universal-file-preview](https://www.npmjs.com/package/@dukeofwest/universal-file-preview) (verified on 2026-11-07; the registry records commit `ad54722`, and the package has a provenance statement).
+- Current version: `0.4.0`
+- npm status: `0.4.0` is published publicly at [@dukeofwest/universal-file-preview](https://www.npmjs.com/package/@dukeofwest/universal-file-preview) (verified on 2026-11-11; the registry records commit `a448383`, and the package has a provenance statement recorded in the sigstore transparency log).
 - Publishing: from 0.3.0, releases are published by the manual `Publish to npm` workflow (`.github/workflows/publish.yml`) through npm trusted publishing, without a stored npm token; npm attaches provenance. The workflow runs only from `main` (GitHub environment `npm`). Earlier versions were published locally with two-factor authentication.
 - Install: `npm install @dukeofwest/universal-file-preview`
 - Module format: ESM only; no CommonJS export is configured.
