@@ -22,7 +22,7 @@ Creates a viewer and appends its DOM to `options.container`. The viewer styleshe
 | `maxFileSize` | `number` | `128 * 1024 * 1024` | Maximum input size in bytes; must be a positive safe integer. |
 | `registry` | `RendererRegistry` | default registry | Renderer registry to use. |
 | `styleNonce` | `string` | none | Nonce for the fallback `<style>` element, used only in browsers without constructable stylesheets, so a Content Security Policy without `'unsafe-inline'` can allow it. Must be a non-empty string. |
-| `worker` | `PreviewWorkerOptions` | none | Parse DOCX, XLSX, PPTX, ODS, OTS, and FODS files in a Web Worker (see [Worker mode](#worker-mode)). Without it, parsing runs on the main thread. |
+| `worker` | `PreviewWorkerOptions` | none | Parse DOCX, XLSX, PPTX, OpenDocument spreadsheet (ODS, OTS, FODS) and OpenDocument text (ODT, OTT, FODT) files in a Web Worker (see [Worker mode](#worker-mode)). Without it, parsing runs on the main thread. |
 
 ### Worker mode
 
@@ -116,11 +116,11 @@ interface FileRenderer {
 }
 ```
 
-`RendererRegistry.register(renderer)` registers every format in the renderer's `formats` list and returns an unregister function. Duplicate formats in one renderer or formats already registered cause `PreviewError("renderer-error")`. `createDefaultRendererRegistry()` returns the built-in image/DOCX/XLSX/PPTX/ODS registry (the ODS renderer handles `"ods"`, `"ots"`, and `"fods"`). Registering another renderer for one of those formats in the default registry throws; use `new RendererRegistry()` for a fully custom set of renderers.
+`RendererRegistry.register(renderer)` registers every format in the renderer's `formats` list and returns an unregister function. Duplicate formats in one renderer or formats already registered cause `PreviewError("renderer-error")`. `createDefaultRendererRegistry()` returns the built-in image/DOCX/XLSX/PPTX/ODS/ODT registry (the ODS renderer handles `"ods"`, `"ots"` and `"fods"`; the ODT renderer handles `"odt"`, `"ott"` and `"fodt"`). Registering another renderer for one of those formats in the default registry throws; use `new RendererRegistry()` for a fully custom set of renderers.
 
 ## Format and lower-level utilities
 
-- `detectFormat(name, mimeType?, bytes?)` returns `FileFormat`, including `"unknown"`. OpenDocument spreadsheets are `"ods"`, `"ots"` (template), and `"fods"` (flat XML). Detection is not proof that a built-in renderer exists.
+- `detectFormat(name, mimeType?, bytes?)` returns `FileFormat`, including `"unknown"`. OpenDocument spreadsheets are `"ods"`, `"ots"` (template), and `"fods"` (flat XML); OpenDocument text documents are `"odt"`, `"ott"` (template), and `"fodt"` (flat XML). Detection is not proof that a built-in renderer exists.
 - `BinaryReader` provides checked byte reads, seeks, endian-aware integer reads, and text reads.
 - `ZipArchive.open(bytes, { maxEntrySize?, maxEntries? })` reads supported ZIP metadata; `entries`, `has(path)`, and `read(path)` expose package entries.
 - `inflateRaw(bytes, expectedSize, maxOutputSize?)` exposes the project's raw-DEFLATE decoder; the default maximum output is 32 MiB.

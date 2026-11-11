@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.4.0 - 2026-11-11
+
+This release adds OpenDocument text previews and fixes two resource-exhaustion issues in the handling of untrusted files. It is a minor version because the public `FileFormat` type gains three members and the default renderer registry serves them; existing code that does not switch exhaustively over `FileFormat` works without changes. Upgrading is recommended for applications that preview files from untrusted sources. The package still has no runtime dependencies.
+
+### New features
+
+- **OpenDocument text previews**, rendered through the same viewer as DOCX. Paragraphs and headings keep their outline level, text and paragraph styles are resolved through their inheritance chains, and spans, spaces, tabs and line breaks are read. Lists carry their numbering, including nested levels, restarts and continuations; tables carry their spans, column widths and cell styles. Images stored in the package, or inline in a flat document, are shown at their declared size with their alternative text. Page size, margins, headers and footers come from the document's master page, including a distinct first page.
+- A template is labelled as a template and shown as saved, with its placeholders never filled in.
+- Content that cannot be shown faithfully is reported in the preview instead of disappearing (see Worker and diagnostics improvements).
+
+### New OpenDocument format support
+
+| Format | Extension | Media type |
+| --- | --- | --- |
+| Text document | `.odt` | `application/vnd.oasis.opendocument.text` |
+| Text template | `.ott` | `application/vnd.oasis.opendocument.text-template` |
+| Flat text document | `.fodt` | single-file XML, no package |
+
+`detectFormat` returns these for text documents identified by the package's `mimetype` entry, by flat-XML content, by MIME type or by extension. A document is identified by its own declared media type rather than by its file name.
+
+This is a defined subset of the OpenDocument text specification, not complete specification support. See the known limitations below and [docs/format-support.md](docs/format-support.md) for what is read.
+
+### Worker and diagnostics improvements
+
+- Worker mode covers the new formats, so a text document can be parsed off the main thread like any other. The worker's format list and the model kind it expects for each format are now a single explicit table, so a format cannot be added to the protocol without stating which model it returns.
+- Two diagnostics are new: a document that is a template is reported as one, and content the preview cannot show faithfully is counted and named above the document instead of being dropped silently. This covers notes, comments, text boxes, embedded objects, charts and tracked changes.
+
+### Security fixes
+
+- **OpenDocument spreadsheets: XML element amplification.** The number of XML elements a document's content may hold is now bounded by the workbook's cell limit (250,000 plus eight per permitted cell, so 4,250,000 at the default limit) instead of by the size the part is allowed to have, which stood at about 33.5 million elements whatever a file contained. A 115 KiB package of many empty elements could keep the parser busy for about 11 seconds of CPU time; it is now refused while being read. **Affected versions: `>= 0.2.0, <= 0.3.0`**, every version with OpenDocument spreadsheet support.
+- **Namespace resolution: unbounded copying.** Entering an element that declares a namespace copied every binding then in scope, and nothing bounded that work. The nesting and attribute limits together allow more than 131,000 bindings at once, so a few hundred elements below such a stack cost tens of seconds and more than a gigabyte of memory while staying inside every element and token limit. Entering an element now costs only the declarations it makes, and a prefix is resolved by walking the enclosing scopes and remembering the answer at each one. A 560 KiB spreadsheet of 433 elements went from about 17 seconds and 1.1 GiB to 0.19 seconds and 14 MiB. **Affected versions: OpenDocument spreadsheets `>= 0.2.0, <= 0.3.0`; SVG images, standalone and embedded in XLSX and PPTX, `= 0.3.0`** only, the version whose SVG sanitizer parses with the library's own XML layer. Word documents do not display SVG images, so DOCX is not affected on that path.
+
+A compression-ratio limit is deliberately **not** applied to OpenDocument parts. Ordinary spreadsheets compress far beyond the 100:1 ratio used for Office Open XML parts (186:1 to 218:1 measured for a legitimate 500,000-cell workbook), and an attack can be padded below any threshold that keeps such files working, so the ratio separates neither case. The element budget is the control, and it is independent of how the file is compressed: the test suite refuses the same attack compressed, padded below 100:1, and stored uncompressed.
+
+### Compatibility changes
+
+- The public `FileFormat` type now also includes `"odt"`, `"ott"` and `"fodt"`. TypeScript code that switches exhaustively over `FileFormat` needs a branch for them.
+- The default renderer registry now serves those formats, so registering another renderer for them in `createDefaultRendererRegistry()` throws a duplicate-format error; use `new RendererRegistry()` for a fully custom setup.
+- A file whose name or MIME type says it is an OpenDocument text document but whose content is not one now resolves as that format and is refused by the parser, rather than resolving as `"unknown"`.
+- The element budget can refuse OpenDocument spreadsheets that 0.3.0 accepted. A workbook may now hold on average eight XML elements per permitted cell. A plain 500,000-cell workbook holds about two elements per cell, and the same workbook with an annotation or several spans in every cell about four to five, so ordinary documents are unaffected; a document that is both at the cell limit and far denser than that is refused with a `resource-limit` error. Every element in the content stream counts, including ones the viewer discards, such as styled empty cells outside the drawn grid, content-free covered cells, and skipped pivot-table or conditional-format subtrees, so a file consisting mostly of those can now be refused. A spreadsheet that writes each empty cell individually instead of using a repeat count is the most likely to reach the limit without holding much content.
+
+### Known limitations
+
+- Master documents (`.odm`), master templates (`.otm`) and web templates (`.oth`) are not read and stay unrecognised. OpenDocument presentations (`.odp`, `.otp`, `.fodp`) and drawings (`.odg`) are not supported either.
+- Text documents have no pagination, exactly as for DOCX: the preview is a continuous flow, and headers and footers are shown once rather than per page.
+- Notes, comments, text boxes, embedded objects, charts and tracked changes are reported rather than rendered.
+- Linked sections, embedded objects and template references are never fetched, and an image reference with a scheme, an absolute path or a parent-directory step is not followed.
+- A list numbered through its paragraph style's `style:list-style-name`, rather than through the list's own `text:style-name`, is shown with bullets instead of its numbering.
+- A table is limited to 10,000 rows, 256 columns and 1,000 paragraphs in a cell. Content past those limits is left out without a notice, unlike the content kinds listed above.
+- A text document parsed on the main thread cannot be interrupted; worker mode can be, as for the other formats.
+- The resource limits are fixed and cannot yet be changed by the application.
+- Parsing runs on the page's main thread unless worker mode is enabled. See [docs/security.md](docs/security.md) for the remaining gaps; this package is not claimed to be free of vulnerabilities.
+
 ## 0.3.0 - 2026-11-07
 
 This release adds an optional worker mode, limits the size of every parsed document, and lets the viewer run under a strict Content Security Policy and Trusted Types. It is a minor version because the public API gains options and an entry point; existing code works without changes. Some limits are stricter than in 0.2.x and can refuse files that 0.2.x accepted (see Compatibility). Upgrading is recommended for applications that preview files from untrusted sources.
