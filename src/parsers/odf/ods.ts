@@ -52,6 +52,37 @@ const DEFAULT_COLUMN_WIDTH_POINTS = 2.258 * 72 / 2.54, DEFAULT_ROW_HEIGHT_POINTS
 /** Styled empty cells are materialised only inside the grid the renderer draws (xlsx-renderer rowCount/columnCount). */
 const RENDER_MARGIN_ROWS = 40, RENDER_MARGIN_COLUMNS = 12, RENDER_MIN_ROWS = 60, RENDER_MIN_COLUMNS = 26;
 
+/**
+ * XML work bounds for one document stream. They follow the cell budget, which is what a spreadsheet's
+ * content can legitimately require, and never a byte size: both the declared and the compressed size of
+ * a part can be tiny next to the work it demands. Deriving the element limit from maxContentBytes put it
+ * at 33.5 million elements whatever a file held, so a 115 KiB package of empty elements was tokenized for
+ * about 11 s. Eight elements per cell covers a cell with its paragraph, several spans or an annotation,
+ * and its row; the base keeps the previous floor for styles, columns, named expressions and the document
+ * scaffolding. What varies between real documents is density, not count: a plain workbook of 500,000 cells
+ * holds about 1.05 million elements, the same workbook with an annotation in every cell about 2.03 million,
+ * and with three nested spans in every cell about 2.53 million (all measured), so a four-per-cell bound
+ * refused ordinary rich formatting. Elements the parser discards (styled empty cells, content-free covered
+ * cells, skipped pivot and conditional-format subtrees) are charged too, because tokenizing them is the
+ * cost being bounded. Four tokens per element is what an indented producer costs (measured: 2.5 for
+ * LibreOffice's compact output, 4.0 once the XML is pretty-printed), so the token budget does not bind
+ * before the element budget for either.
+ *
+ * A compression-ratio limit (as OoxmlPackage applies to OOXML parts) is deliberately not used here:
+ * repetitive spreadsheet XML legitimately compresses far beyond the 100:1 OOXML threshold (186:1 to 218:1
+ * for a 500,000-cell workbook, by cell content, measured), and padding an attack brings it under any
+ * threshold that keeps such files working, so the ratio separates neither case.
+ */
+const BASE_ELEMENTS = 250_000, ELEMENTS_PER_CELL = 8, TOKENS_PER_ELEMENT = 4;
+/** Keeps the derived bounds safe integers whatever maxCells a caller supplies. */
+const MAX_WORK_ELEMENTS = 2 ** 32;
+
+/** Element and token bounds for the content stream, derived from the cell budget (never from byte sizes). */
+export function xmlWorkLimits(limits: Pick<OdsLimits, "maxCells">): { readonly maxElements: number; readonly maxTokens: number } {
+  const maxElements = Math.min(BASE_ELEMENTS + limits.maxCells * ELEMENTS_PER_CELL, MAX_WORK_ELEMENTS);
+  return { maxElements, maxTokens: maxElements * TOKENS_PER_ELEMENT };
+}
+
 export function parseOds(bytes: Uint8Array, name: string, options: OdsParseOptions = {}): ExtendedWorkbook {
   const limits = resolveLimits(options.limits);
   const collector = new DiagnosticCollector();
@@ -96,7 +127,8 @@ const emptyInCapture = (uri: string, local: string) => uri === ODF.office && (lo
 /** Streams a spreadsheet document once and assembles the workbook (shared by packages and flat files). */
 export function streamSpreadsheet(input: SpreadsheetSource, name: string, limits: OdsLimits, collector: DiagnosticCollector, signal: AbortSignal | undefined): ExtendedWorkbook {
   const content = new ContentReader(input.stylesRoot, collector, limits, input.chartObjects, input.mode);
-  parsePart(() => streamXml(input.source, content, { maxSourceLength: limits.maxContentBytes, maxElements: Math.max(250_000, Math.ceil(limits.maxContentBytes / 4)), maxTokens: Math.max(5_000_000, limits.maxContentBytes), maxCaptureElements: limits.maxCaptureElements, emptyInCapture, ...(signal ? { signal } : {}) }), input.part);
+  const work = xmlWorkLimits(limits);
+  parsePart(() => streamXml(input.source, content, { maxSourceLength: limits.maxContentBytes, maxElements: work.maxElements, maxTokens: work.maxTokens, maxCaptureElements: limits.maxCaptureElements, emptyInCapture, ...(signal ? { signal } : {}) }), input.part);
   const format = input.format;
   const producer = (input.generator ?? content.generator)?.split(/[\s$]/)[0] || undefined;
 
