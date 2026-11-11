@@ -1,7 +1,7 @@
 import { PreviewError, type PreviewErrorCode } from "../errors.js";
 import { checkModel } from "../model-budget.js";
 import type { Presentation, Workbook, WordDocument } from "../model.js";
-import type { ExtendedWorkbook } from "../model-extensions.js";
+import type { ExtendedWordDocument, ExtendedWorkbook } from "../model-extensions.js";
 
 /**
  * Messages between the viewer and its parser worker (version 1), and their run-time validation. Internal
@@ -10,9 +10,9 @@ import type { ExtendedWorkbook } from "../model-extensions.js";
  */
 
 export const PROTOCOL_VERSION = 1;
-export const WORKER_FORMATS = ["docx", "xlsx", "pptx", "ods", "ots", "fods"] as const;
+export const WORKER_FORMATS = ["docx", "xlsx", "pptx", "ods", "ots", "fods", "odt", "ott", "fodt"] as const;
 export type WorkerFormat = typeof WORKER_FORMATS[number];
-export type DocumentModel = WordDocument | Presentation | Workbook | ExtendedWorkbook;
+export type DocumentModel = WordDocument | Presentation | Workbook | ExtendedWorkbook | ExtendedWordDocument;
 
 /** Longest file name sent to the worker, and longest error message accepted from it. */
 export const MAX_NAME_LENGTH = 1024, MAX_ERROR_MESSAGE_LENGTH = 500;
@@ -76,8 +76,16 @@ export function errorMessage(id: number, error: unknown): ErrorMessage {
 
 /** The model kind each worker format produces. */
 export function expectedKind(format: WorkerFormat): DocumentModel["kind"] {
-  return format === "docx" ? "word" : format === "pptx" ? "presentation" : "workbook";
+  // An explicit table: a conditional chain would silently give a new format the wrong kind, and the
+  // mismatch would only surface as a confusing validation error at run time.
+  return MODEL_KINDS[format];
 }
+const MODEL_KINDS: { readonly [F in WorkerFormat]: DocumentModel["kind"] } = {
+  docx: "word", odt: "word", ott: "word",
+  pptx: "presentation",
+  fodt: "word",
+  xlsx: "workbook", ods: "workbook", ots: "workbook", fods: "workbook",
+};
 
 const invalidModel = (where: string) => new PreviewError(`The parser worker returned an invalid document model (${where}).`, "renderer-error");
 

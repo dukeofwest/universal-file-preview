@@ -21,6 +21,8 @@ const specifiedCodes = {
   "odf.unsupported.charts": "warning",
   "odf.unsupported.conditional-formatting": "warning",
   "odf.unsupported.pivot": "info",
+  "odf.unsupported.text-content": "warning",
+  "odf.template": "warning",
   "odf.external-links": "warning",
   "odf.package.no-manifest": "info",
   "odf.package.mimetype-position": "info",

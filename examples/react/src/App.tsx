@@ -89,7 +89,7 @@ export default function App() {
         <div className="upload-actions">
           <label className="button button-primary">
             Choose file
-            <input type="file" accept="image/*,.svg,.docx,.xlsx,.pptx,.ods,.ots,.fods" onChange={onFileChange} />
+            <input type="file" accept="image/*,.svg,.docx,.xlsx,.pptx,.ods,.ots,.fods,.odt,.ott,.fodt" onChange={onFileChange} />
           </label>
           {fileName && <button className="button button-secondary" type="button" onClick={clearFile}>Clear</button>}
         </div>

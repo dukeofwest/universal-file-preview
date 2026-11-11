@@ -5,12 +5,12 @@
 
 **[Open the live Angular, React and Vue demo](https://dukeofwest.github.io/universal-file-preview/)** — try a framework integration with your own file or download a sample document.
 
-Browser-based TypeScript previews for common image formats and selected content from DOCX, XLSX, PPTX, and OpenDocument spreadsheet (ODS) files. The library provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
+Browser-based TypeScript previews for common image formats and selected content from DOCX, XLSX, PPTX, and OpenDocument spreadsheet (ODS) and text (ODT) files. The library provides file loading, format detection, a typed viewer lifecycle, and a renderer registry. Its ZIP, DEFLATE, XML, document parsing, and rendering code is implemented in this project; it does not depend on third-party document parsing or rendering packages.
 
 ## Features
 
 - Preview GIF, PNG, JPEG, WebP, and sanitized SVG using browser image decoding.
-- Render implemented subsets of DOCX, XLSX, PPTX, and ODS/OTS/FODS in the browser.
+- Render implemented subsets of DOCX, XLSX, PPTX, ODS/OTS/FODS and ODT/OTT/FODT in the browser.
 - Load from a `File`/`Blob`, `ArrayBuffer`, `Uint8Array`, or a URL fetched by the browser.
 - Replace the current file, zoom or fit the preview, download loaded bytes, and clean up renderer resources.
 - Add format handlers through a renderer registry.
@@ -162,7 +162,7 @@ npm run build
 npm run demo
 ```
 
-Then open <http://127.0.0.1:4173/> and choose an image, DOCX, XLSX, PPTX, ODS, or FODS file.
+Then open <http://127.0.0.1:4173/> and choose an image, DOCX, XLSX, PPTX, ODS, FODS, ODT, or FODT file.
 
 See [live demo and Pages setup](./docs/live-demo.md) for deployment status and the local framework site preview instructions.
 
@@ -201,7 +201,7 @@ Local file sources are read in the browser and are not uploaded by this library.
 
 ## Limitations
 
-- DOCX, XLSX, PPTX, and ODS are partial implementations; visual and feature fidelity varies by file.
+- DOCX, XLSX, PPTX, ODS and ODT are partial implementations; visual and feature fidelity varies by file.
 - ODT and ODP (OpenDocument text and presentations) are not supported yet.
 - There is no built-in PDF or legacy binary Office renderer.
 - Browser rendering and real-file visual comparisons are not covered by the current automated test suite.

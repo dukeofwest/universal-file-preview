@@ -31,6 +31,8 @@ export type Paragraph = {
   style?: string;
   alignment?: "left" | "center" | "right" | "justify";
   kind?: "paragraph" | "heading";
+  /** Outline level 1 to 10 for a heading, when the document states one. DOCX does not set it. */
+  headingLevel?: number;
   spacingBefore?: number;
   spacingAfter?: number;
   lineHeight?: number;

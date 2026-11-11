@@ -85,7 +85,7 @@ export function renderWorkbook(workbook: ExtendedWorkbook, options: { locale: st
 }
 
 /** The diagnostics notice: plain text nodes only, never HTML, since messages may contain document metadata. */
-function renderNotice(entries: readonly PreviewDiagnostic[]): HTMLElement {
+export function renderNotice(entries: readonly PreviewDiagnostic[]): HTMLElement {
   const notice = document.createElement("div"); notice.className = "ufp-sheet-notice"; notice.setAttribute("role", "note");
   const summary = document.createElement("p"); summary.textContent = "This preview may differ from the original:";
   const list = document.createElement("ul");

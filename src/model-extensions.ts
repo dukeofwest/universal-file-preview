@@ -1,5 +1,5 @@
 import type { PreviewDiagnostic } from "./diagnostics.js";
-import type { SpreadsheetCell, SpreadsheetColumn, SpreadsheetRange, SpreadsheetStyle, Workbook, Worksheet } from "./model.js";
+import type { SpreadsheetCell, SpreadsheetColumn, SpreadsheetRange, SpreadsheetStyle, Workbook, WordDocument, Worksheet } from "./model.js";
 
 /**
  * Format-neutral spreadsheet model extensions (implementation specification §4.4 and §6,
@@ -18,7 +18,7 @@ import type { SpreadsheetCell, SpreadsheetColumn, SpreadsheetRange, SpreadsheetS
  */
 
 /** Where a model came from. Reused by the document and presentation models in later phases. */
-export type DocumentSourceFormat = "xlsx" | "ods" | "ots" | "fods";
+export type DocumentSourceFormat = "xlsx" | "ods" | "ots" | "fods" | "odt" | "ott" | "fodt";
 export type DocumentSource = {
   format: DocumentSourceFormat;
   /** Producing application as declared by the file, e.g. meta:generator. */
@@ -27,6 +27,15 @@ export type DocumentSource = {
   formatVersion?: string;
   /** BCP 47 tag of the document's default language, e.g. "de-DE". */
   locale?: string;
+};
+
+/**
+ * A WordDocument with the fields the OpenDocument text parser adds. The public WordDocument is
+ * unchanged (decision D2): renderers read these through this type, and the DOCX parser never sets them.
+ */
+export type ExtendedWordDocument = WordDocument & {
+  source?: DocumentSource;
+  diagnostics?: PreviewDiagnostic[];
 };
 
 export type SpreadsheetValueKind = "empty" | "number" | "percentage" | "currency" | "date" | "time" | "boolean" | "string" | "error" | "invalid";

@@ -36,9 +36,19 @@ async function corpus() {
   const demo = mkdtempSync(join(tmpdir(), "ufp-fuzz-demo-"));
   try { await writeDemoSamples(demo); for (const name of readdirSync(demo)) files.push({ name, bytes: new Uint8Array(readFileSync(join(demo, name))) }); }
   finally { rmSync(demo, { recursive: true, force: true }); }
-  const { makeOds, makeFods } = await import(pathToFileURL(join(root, "tests", "helpers", "odf.mjs")));
+  const { makeOds, makeFods, makeOdt, makeFodt, OTT_MEDIA_TYPE } = await import(pathToFileURL(join(root, "tests", "helpers", "odf.mjs")));
   const body = '<table:table table:name="S"><table:table-row><table:table-cell office:value-type="float" office:value="1.5"><text:p>1.5</text:p></table:table-cell><table:table-cell office:value-type="string" table:number-columns-repeated="3"><text:p>a<text:span>b</text:span></text:p></table:table-cell></table:table-row></table:table>';
   files.push({ name: "s.ods", bytes: makeOds({ body }) }, { name: "s.fods", bytes: makeFods({ body }) });
+  const textBody = '<text:h text:outline-level="1">Title</text:h><text:p text:style-name="P1">a<text:span text:style-name="T1">b</text:span><text:s text:c="3"/><text:tab/><text:line-break/></text:p><text:list text:style-name="L1"><text:list-item><text:p>one</text:p></text:list-item><text:list-item><text:p>two</text:p><text:list><text:list-item><text:p>deep</text:p></text:list-item></text:list></text:list-item></text:list><table:table table:name="T" table:style-name="Ta1"><table:table-column table:number-columns-repeated="2" table:style-name="co1"/><table:table-row><table:table-cell table:style-name="ce1" table:number-columns-spanned="2"><text:p>cell</text:p></table:table-cell><table:covered-table-cell/></table:table-row></table:table>';
+  const textAutomatic = '<style:style style:name="P1" style:family="paragraph"><style:paragraph-properties fo:text-align="center" fo:margin-left="1cm"/><style:text-properties fo:color="#112233"/></style:style><style:style style:name="T1" style:family="text"><style:text-properties fo:font-weight="bold" style:text-underline-style="solid"/></style:style><style:style style:name="Ta1" style:family="table"><style:table-properties style:width="12cm"/></style:style><style:style style:name="co1" style:family="table-column"><style:table-column-properties style:column-width="2cm"/></style:style><style:style style:name="ce1" style:family="table-cell"><style:table-cell-properties fo:background-color="#eeeeee" fo:border="0.5pt solid #333333"/></style:style>';
+  const textStyles = '<text:list-style style:name="L1"><text:list-level-style-number text:level="1" style:num-format="1" style:num-suffix="."/><text:list-level-style-bullet text:level="2" text:bullet-char="-"/></text:list-style><style:page-layout style:name="pm1"><style:page-layout-properties fo:page-width="21cm" fo:page-height="29.7cm" fo:margin="2cm"/></style:page-layout>';
+  const textMaster = '<style:master-page style:name="Standard" style:page-layout-name="pm1"><style:header><text:p>head</text:p></style:header><style:footer><text:p>foot</text:p></style:footer></style:master-page>';
+  const textOptions = { body: textBody, automatic: textAutomatic, styles: textStyles, master: textMaster };
+  files.push(
+    { name: "t.odt", bytes: makeOdt(textOptions) },
+    { name: "t.ott", bytes: makeOdt({ ...textOptions, mimetype: OTT_MEDIA_TYPE }) },
+    { name: "t.fodt", bytes: makeFodt(textOptions) },
+  );
   const { svgSanitizerCases } = await import(pathToFileURL(join(root, "tests", "helpers", "security-fixtures.mjs")));
   for (const entry of svgSanitizerCases("http://attacker.invalid")) files.push({ name: "case.svg", bytes: new TextEncoder().encode(entry.svg) });
   // The small denial-of-service files (large ones would make each iteration slow).
@@ -116,7 +126,7 @@ import { parentPort } from "node:worker_threads";
 const { detectFormat } = await import(${JSON.stringify(pathToFileURL(join(root, "dist", "detection", "detect-format.js")).href)});
 const { parseModel } = await import(${JSON.stringify(pathToFileURL(join(root, "dist", "parsers", "parse-model.js")).href)});
 const { sanitizeSvg } = await import(${JSON.stringify(pathToFileURL(join(root, "dist", "renderers", "image-url.js")).href)});
-const documents = new Set(["docx", "xlsx", "pptx", "ods", "ots", "fods"]);
+const documents = new Set(["docx", "xlsx", "pptx", "ods", "ots", "fods", "odt", "ott", "fodt"]);
 parentPort.on("message", ({ name, bytes }) => {
   const started = performance.now();
   let result = "handled", detail;

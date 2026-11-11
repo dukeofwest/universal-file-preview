@@ -4,7 +4,7 @@
 
 `FilePreviewer` owns the viewer DOM, toolbar, loading status, current file, zoom state, download action, cancellation, and cleanup. It obtains bytes from a `Blob`, `ArrayBuffer`, `Uint8Array`, or browser `fetch` request. It detects a `FileFormat`, finds the matching handler in `RendererRegistry`, and passes the file metadata, format, bytes, and an `AbortSignal` to that renderer. The renderer returns a DOM element and may implement zoom, fit-to-width, and cleanup methods.
 
-The built-in registry contains image, DOCX, XLSX, PPTX, and OpenDocument spreadsheet (ODS, OTS, FODS) handlers. PDF and legacy Office formats can be detected but have no built-in renderer. Applications can register custom handlers.
+The built-in registry contains image, DOCX, XLSX, PPTX, OpenDocument spreadsheet (ODS, OTS, FODS) and OpenDocument text (ODT, OTT, FODT) handlers. PDF and legacy Office formats can be detected but have no built-in renderer. Applications can register custom handlers.
 
 ## Parsing and rendering
 

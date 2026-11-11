@@ -7,11 +7,13 @@ npm test
 npm run typecheck
 ```
 
-`npm test` first runs the TypeScript build and then Node's built-in test runner over `tests/*.test.mjs`. The current suite has 268 tests covering:
+`npm test` first runs the TypeScript build and then Node's built-in test runner over `tests/*.test.mjs`. The current suite has 422 tests covering:
 
 - binary reads, format detection (including OpenDocument detection), ZIP decoding and limits, and XML handling (the tree parser, the namespace-aware tokenizer, namespace resolution, and the streaming reader);
 - characterization snapshots that pin the DOCX, XLSX, PPTX, and demo-sample parser output, plus synthetic DOCX/XLSX/PPTX parser fixtures and selected XLSX format/formula behaviour;
 - OpenDocument package validation, value, style and text utilities, the ODS parser, a financial-accuracy suite (typed values, saved display text, currencies, formulas, hidden data, empty versus zero), number styles, view settings, flat `.fods` files, and the renderer registration;
+- the OpenDocument text parser: package and template detection, paragraphs, headings and their outline levels, text and paragraph style inheritance, lists and their numbering, tables, page layout, headers and footers, package and inline images, flat `.fodt` documents, and the renderer, which is checked to produce for DOCX exactly what the DOCX renderer produces (`tests/odt.test.mjs`, `odt-structure.test.mjs`, `odt-layout.test.mjs`, `odt-flat.test.mjs`, `odt-render.test.mjs`, `detection-odt.test.mjs`);
+- the OpenDocument XML work limits (`tests/ods-work-limits.test.mjs`): the element budget as a function of the cell budget, element bombs compressed, padded below the 100:1 ratio and stored uncompressed, elements that materialise no cells, and namespace scopes that neither copy their bindings nor lose a prefix declared far above;
 - workbook layout helpers and parse diagnostics;
 - security regressions: font-name validation, image type and signature checks, malicious SVG and font-name fixtures for DOCX, PPTX, XLSX, ODS, and FODS (`tests/helpers/security-fixtures.mjs`), source checks that renderers never build `cssText` or create image blobs outside `renderers/image-url.ts`, and the viewer containment rules;
 - XLSX text limits (`tests/xlsx-text-limits.test.mjs`): per-cell and workbook-wide text limits, repeated shared-string references, formatted display text, formula text results and conditional-format display text;

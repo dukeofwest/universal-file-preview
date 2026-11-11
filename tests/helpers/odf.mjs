@@ -90,3 +90,43 @@ export function flatOdsXml({ body, automatic = "", fontFaces = "", styles = "", 
   return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document office:version="1.3" office:mimetype="${mimetype}"><office:meta><meta:generator>${generator}</meta:generator></office:meta>${settings !== undefined ? `<office:settings>${settings}</office:settings>` : ""}<office:font-face-decls><style:font-face style:name="Liberation Sans" svg:font-family="'Liberation Sans'"/>${fontFaces}</office:font-face-decls><office:styles><style:default-style style:family="table-cell"><style:text-properties style:font-name="Liberation Sans" fo:font-size="10pt" fo:language="${language}" fo:country="${country}"/></style:default-style><style:style style:name="Default" style:family="table-cell"/>${styles}</office:styles><office:automatic-styles>${automatic}</office:automatic-styles><office:master-styles/><office:body><office:spreadsheet>${body}</office:spreadsheet></office:body></office:document>`, prefixes);
 }
 export const makeFods = (options, prefixes) => new TextEncoder().encode(flatOdsXml(options, prefixes));
+
+// ---------------------------------------------------------------------------------------------
+// OpenDocument text (milestones 3.1 to 3.5). Same shape as the spreadsheet helpers above, so a
+// text fixture is written the same way and carries the same meta, styles and automatic styles.
+// ---------------------------------------------------------------------------------------------
+
+export const ODT_MEDIA_TYPE = "application/vnd.oasis.opendocument.text";
+export const OTT_MEDIA_TYPE = "application/vnd.oasis.opendocument.text-template";
+
+/** content.xml of a text document: `body` is the inner content of office:text. */
+export function textContent({ body = "", automatic = "", fontFaces = "", version = "1.3" } = {}, prefixes = {}) {
+  // `automatic: null` leaves out office:automatic-styles altogether, which the format allows: the
+  // element is optional, and styles.xml must still be read without it.
+  const automaticStyles = automatic === null ? "" : `<office:automatic-styles>${automatic}</office:automatic-styles>`;
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document-content office:version="${version}"><office:font-face-decls>${fontFaces}</office:font-face-decls>${automaticStyles}<office:body><office:text>${body}</office:text></office:body></office:document-content>`, prefixes);
+}
+
+/** styles.xml of a text document: `styles` is the inner content of office:styles. */
+export function textStyles({ styles = "", master = "" } = {}, prefixes = {}) {
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document-styles office:version="1.3"><office:styles>${styles}</office:styles><office:automatic-styles/><office:master-styles>${master}</office:master-styles></office:document-styles>`, prefixes);
+}
+
+/** A complete .odt (or .ott) package from textContent/textStyles options. */
+export function makeOdt({ body, automatic, fontFaces, styles, master, generator = "LibreOffice/24.8.4.2$Windows_X86_64 LibreOffice_project/test", extra, mimetype = ODT_MEDIA_TYPE, manifest } = {}, prefixes = {}) {
+  const meta = odfXml(`<office:document-meta office:version="1.3"><office:meta><meta:generator>${generator}</meta:generator></office:meta></office:document-meta>`, prefixes);
+  return makeOdfPackage({
+    mimetype,
+    content: textContent({ body, automatic, fontFaces }, prefixes),
+    styles: textStyles({ styles, master }, prefixes),
+    meta,
+    ...(extra ? { extra } : {}),
+    ...(manifest !== undefined ? { manifest } : {}),
+  });
+}
+
+/** The flat (.fodt) equivalent of makeOdt, as a UTF-8 string. */
+export function flatOdtXml({ body = "", automatic = "", fontFaces = "", styles = "", master = "", generator = "LibreOffice/24.8.4.2$Windows_X86_64 LibreOffice_project/test", mimetype = ODT_MEDIA_TYPE } = {}, prefixes = {}) {
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document office:version="1.3" office:mimetype="${mimetype}"><office:meta><meta:generator>${generator}</meta:generator></office:meta><office:font-face-decls>${fontFaces}</office:font-face-decls><office:styles>${styles}</office:styles><office:automatic-styles>${automatic}</office:automatic-styles><office:master-styles>${master}</office:master-styles><office:body><office:text>${body}</office:text></office:body></office:document>`, prefixes);
+}
+export const makeFodt = (options, prefixes) => new TextEncoder().encode(flatOdtXml(options, prefixes));
