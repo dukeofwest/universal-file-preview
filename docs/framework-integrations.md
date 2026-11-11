@@ -2,7 +2,7 @@
 
 Universal File Preview is a browser-side TypeScript library with a framework-agnostic DOM lifecycle API. It does not provide official Angular, React, or Vue adapter packages. The repository examples demonstrate how to own the viewer lifecycle from a standalone Angular component, React hooks, and Vue 3 Composition API.
 
-All three examples install the published `@dukeofwest/universal-file-preview@0.3.0` package. They import the public `FilePreviewer` class, pass a framework-managed host element as `container`, and provide a browser `File` through the public `PreviewFile` shape. They destroy the current instance on cleanup and before replacing it. They parse documents in worker mode with `fallback: "main-thread"`: React imports the worker with Vite's `?worker` suffix, and Vue and Angular use a one-line `parser.worker.ts` module (see [Set up worker mode](./installation.md#set-up-worker-mode)).
+All three examples install the published `@dukeofwest/universal-file-preview@0.4.0` package. They import the public `FilePreviewer` class, pass a framework-managed host element as `container`, and provide a browser `File` through the public `PreviewFile` shape. They destroy the current instance on cleanup and before replacing it. They parse documents in worker mode with `fallback: "main-thread"`: React imports the worker with Vite's `?worker` suffix, and Vue and Angular use a one-line `parser.worker.ts` module (see [Set up worker mode](./installation.md#set-up-worker-mode)).
 
 ```ts
 import { FilePreviewer } from "@dukeofwest/universal-file-preview";

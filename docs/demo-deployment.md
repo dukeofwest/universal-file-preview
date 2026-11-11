@@ -1,6 +1,6 @@
 # Demo deployment
 
-The GitHub Pages site combines independent Angular, React, and Vue applications. The landing page selects and embeds the actual compiled framework application. Each app installs and imports the published `@dukeofwest/universal-file-preview@0.3.0` package and parses documents in worker mode. Selected files are read in the browser and are not uploaded by these examples.
+The GitHub Pages site combines independent Angular, React, and Vue applications. The landing page selects and embeds the actual compiled framework application. Each app installs and imports the published `@dukeofwest/universal-file-preview@0.4.0` package and parses documents in worker mode. Selected files are read in the browser and are not uploaded by these examples.
 
 ## GitHub Pages
 
