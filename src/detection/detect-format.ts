@@ -84,9 +84,10 @@ function isFlatSpreadsheet(bytes: Uint8Array): boolean {
 /**
  * A flat OpenDocument text document declares the office namespace and the text media type near its start.
  * The media type is matched as a whole attribute value, because "...opendocument.text" is a prefix of the
- * master-document, web-template and master-template types, which this library does not read.
+ * master-document, web-template and master-template types, which this library does not read. Either quote
+ * character delimits it: XML allows both, so a producer that writes single quotes is read the same way.
  */
-const flatTextMediaType = new RegExp(`mimetype\\s*=\\s*"(?:${ODT_MEDIA_TYPE}|${OTT_MEDIA_TYPE})"`.replace(/\./g, "\\."));
+const flatTextMediaType = new RegExp(`mimetype\\s*=\\s*(["'])(?:${ODT_MEDIA_TYPE}|${OTT_MEDIA_TYPE})\\1`.replace(/\./g, "\\."));
 function isFlatText(bytes: Uint8Array): boolean {
   const text = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
   return text.includes(ODF_OFFICE_NAMESPACE) && flatTextMediaType.test(text);

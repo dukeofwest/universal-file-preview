@@ -177,6 +177,8 @@ class TextReader {
   /** Set by text:list-item so that only an item's first paragraph carries the label. */
   #pendingLabel = false;
   #table: TableBuilder | undefined;
+  /** Characters pushed into the paragraph being built, so the length limit also bounds merged runs. */
+  #paragraphText = 0;
 
   constructor(private readonly input: TextSource, private readonly limits: OdtLimits, private readonly collector: DiagnosticCollector) {
     // office:automatic-styles is optional, and #readStyles only runs when a style subtree is reached.
@@ -243,7 +245,8 @@ class TextReader {
     if (uri === OFFICE && local === "font-face-decls") return;
     if (uri === TABLE && local === "table-row") { this.#table?.row(node, this); return; }
     if (uri !== TEXT || (local !== "p" && local !== "h")) return;
-    this.#push({ type: "paragraph", value: this.paragraphOf(node, local === "h", this.#takeLabel()) });
+    // The paragraph's own style is passed in: a list that names no list style takes its numbering from it.
+    this.#push({ type: "paragraph", value: this.paragraphOf(node, local === "h", this.#takeLabel(nsAttr(node, TEXT, "style-name"))) });
   }
 
   #push(block: WordBlock): void {
@@ -271,9 +274,13 @@ class TextReader {
   }
 
   #defer(kind: string): "skip" {
+    // Every drawing that cannot be shown is counted: its message states how many images or shapes are
+    // missing, and reporting the kind once left that number at 1 however many had been left out.
+    if (kind === "drawing") { this.collector.report("odf.unsupported.drawings"); return "skip"; }
+    // The other kinds are counted per kind, which is what their shared message says.
     if (!this.#unsupported.has(kind)) {
       this.#unsupported.add(kind);
-      this.collector.report(kind === "drawing" ? "odf.unsupported.drawings" : "odf.unsupported.text-content");
+      this.collector.report("odf.unsupported.text-content");
     }
     return "skip";
   }
@@ -327,6 +334,17 @@ class TextReader {
     if (++this.#tableCells > this.limits.maxTableCells) throw new PreviewError("The document has more table cells than the configured limit.", "resource-limit");
   }
 
+  /**
+   * Reports content left out because a table reached one of the preview's structural limits. Those
+   * limits used to drop rows, cells and paragraphs with no notice, against the contract that nothing
+   * disappears silently.
+   */
+  reportTruncated(code: "odf.bounds.table-rows" | "odf.bounds.table-columns" | "odf.bounds.cell-paragraphs", count = 1): void {
+    if (!(count >= 1)) return;
+    // A repeat count comes from the document, so the reported number is clamped to a safe integer.
+    this.collector.report(code, { count: Math.min(Math.trunc(count), Number.MAX_SAFE_INTEGER) });
+  }
+
   /** Reports a kind of content that is kept as text rather than in its own shape. */
   reportFlattened(kind: string): void {
     if (this.#unsupported.has(kind)) return;
@@ -366,9 +384,14 @@ class TextReader {
   }
 
   /** The list label for the next paragraph, consumed so that later paragraphs of an item have none. */
-  #takeLabel(): Paragraph["list"] | undefined {
+  #takeLabel(styleName?: string): Paragraph["list"] | undefined {
     if (this.#listDepth < 1) return undefined;
     const level = Math.min(this.#listDepth, 10);
+    // A text:list need not name a list style (ODF 1.3 Part 3 5.3.1): the numbering may come from the
+    // paragraph style's style:list-style-name instead, which styles.listOfParagraph resolved but nothing
+    // ever asked for, so such a list was shown with bullets. Kept once resolved, so every item of the
+    // list is labelled from the same definition; leaving the list restores the enclosing one.
+    if (this.#listLevels === undefined) this.#listLevels = this.styles?.listOfParagraph(styleName);
     const levels = this.#listLevels;
     const definition = levels?.[level];
     const indent: Partial<NonNullable<Paragraph["list"]>> = {
@@ -392,6 +415,7 @@ class TextReader {
   paragraphOf(node: NsXmlNode, heading: boolean, list?: Paragraph["list"]): Paragraph {
     const styleName = nsAttr(node, TEXT, "style-name");
     const runs: TextRun[] = [];
+    this.#paragraphText = 0;
     this.#runs(node, this.styles?.run(styleName), runs, 0);
     const paragraph: Paragraph = { runs: runs.length ? runs : [{ text: "" }] };
     const formatting = this.styles?.paragraph(styleName);
@@ -490,11 +514,15 @@ class TextReader {
 
   #push2(runs: TextRun[], text: string, inherited: Partial<TextRun> | undefined): void {
     if (!text) return;
-    const last = runs[runs.length - 1];
-    if (last && !last.pageBreak && sameFormatting(last, inherited)) { last.text = this.budget.text(last.text + text); return; }
-    if (runs.reduce((total, run) => total + run.text.length, 0) + text.length > this.limits.maxParagraphTextLength) {
+    // Charged before the run is placed, so text appended to the previous run counts too: the limit was
+    // checked only when a new run was pushed, and a paragraph whose text all merged into one run could
+    // grow to any length. Counting here also keeps the check off the quadratic sum of every run.
+    if (this.#paragraphText + text.length > this.limits.maxParagraphTextLength) {
       throw new PreviewError("A paragraph's text exceeds the configured length limit.", "resource-limit");
     }
+    this.#paragraphText += text.length;
+    const last = runs[runs.length - 1];
+    if (last && !last.pageBreak && sameFormatting(last, inherited)) { last.text = this.budget.text(last.text + text); return; }
     runs.push({ ...inherited, text: this.budget.text(text) });
   }
 }
@@ -517,9 +545,13 @@ class TableBuilder {
   }
 
   row(node: NsXmlNode, reader: TextReader): void {
-    if (this.#rows.length >= MAX_TABLE_ROWS) return;
     const repeated = Number(nsAttr(node, TABLE, "number-rows-repeated") ?? "1");
-    const times = Number.isFinite(repeated) ? Math.min(Math.max(Math.trunc(repeated), 1), MAX_TABLE_ROWS - this.#rows.length) : 1;
+    const wanted = Number.isFinite(repeated) ? Math.min(Math.max(Math.trunc(repeated), 1), Number.MAX_SAFE_INTEGER) : 1;
+    const room = MAX_TABLE_ROWS - this.#rows.length;
+    // Rows past the limit are still left out, but no longer silently: the reader is told how many.
+    if (room <= 0) { reader.reportTruncated("odf.bounds.table-rows", wanted); return; }
+    const times = Math.min(wanted, room);
+    if (wanted > times) reader.reportTruncated("odf.bounds.table-rows", wanted - times);
     const cells = this.#cells(node, reader);
     for (let index = 0; index < times; index++) {
       if (index > 0) for (const _ of cells) reader.chargeTableCell();
@@ -540,7 +572,8 @@ class TableBuilder {
       const rowSpan = spanOf(nsAttr(child, TABLE, "number-rows-spanned"));
       const paragraphs = cellParagraphs(child, reader);
       const style = reader.styles?.cell(nsAttr(child, TABLE, "style-name"));
-      for (let index = 0; index < times && cells.length < MAX_TABLE_COLUMNS; index++) {
+      for (let index = 0; index < times; index++) {
+        if (cells.length >= MAX_TABLE_COLUMNS) { reader.reportTruncated("odf.bounds.table-columns", times - index); break; }
         reader.chargeTableCell();
         const width = this.#columnWidths[column];
         cells.push({
@@ -602,15 +635,34 @@ function spanOf(value: string | undefined): number {
  */
 function cellParagraphs(cell: NsXmlNode, reader: TextReader): Paragraph[] {
   const paragraphs: Paragraph[] = [];
+  // Set by text:list-item so that only an item's first paragraph carries the label, as a list outside a
+  // cell does: the label was built for every paragraph of the item, so an item of two paragraphs was
+  // numbered twice with the same number.
+  const state = { pendingLabel: false, truncated: false };
+  const full = (): boolean => {
+    if (paragraphs.length < MAX_CELL_PARAGRAPHS) return false;
+    if (!state.truncated) { state.truncated = true; reader.reportTruncated("odf.bounds.cell-paragraphs"); }
+    return true;
+  };
   const walk = (node: NsXmlNode, depth: number, counters: number[], levels: readonly OdtListLevel[] | undefined, listDepth: number): void => {
-    if (depth > 16 || paragraphs.length >= MAX_CELL_PARAGRAPHS) return;
+    if (depth > 16 || full()) return;
     for (const child of node.children) {
-      if (typeof child === "string" || paragraphs.length >= MAX_CELL_PARAGRAPHS) continue;
+      if (typeof child === "string" || full()) continue;
       const { uri, local } = child;
       if (uri === TEXT && (local === "p" || local === "h")) {
-        const list = listDepth > 0 && levels
-          ? { label: listLabel(levels, Math.min(listDepth, 10), counters), level: Math.min(listDepth, 10) - 1, kind: (levels[Math.min(listDepth, 10)]?.kind ?? "bullet") as "ordered" | "bullet" }
+        const level = Math.min(listDepth, 10);
+        // As above: a list may take its numbering from the paragraph style rather than its own name.
+        // Only resolved inside a list: the chain walk is not cached, and an ordinary cell has no list.
+        const resolved = listDepth < 1 ? undefined : levels ?? reader.styles?.listOfParagraph(nsAttr(child, TEXT, "style-name"));
+        const definition = resolved?.[level];
+        const list = resolved
+          ? {
+              label: state.pendingLabel ? listLabel(resolved, level, counters) : "",
+              level: level - 1,
+              kind: definition?.kind === "ordered" ? ("ordered" as const) : ("bullet" as const),
+            }
           : undefined;
+        state.pendingLabel = false;
         paragraphs.push(reader.paragraphOf(child, local === "h", list));
       } else if (uri === TEXT && local === "list") {
         const style = reader.styles?.list(nsAttr(child, TEXT, "style-name")) ?? levels;
@@ -618,6 +670,8 @@ function cellParagraphs(cell: NsXmlNode, reader: TextReader): Paragraph[] {
       } else if (uri === TEXT && (local === "list-item" || local === "list-header")) {
         const level = Math.min(listDepth, 10);
         if (local === "list-item") counters[level] = (counters[level] ?? ((levels?.[level]?.startValue ?? 1) - 1)) + 1;
+        // A list header is indented but never labelled, exactly as outside a cell.
+        state.pendingLabel = local === "list-item";
         walk(child, depth + 1, counters, levels, listDepth);
       } else if (uri === TABLE && local === "table") {
         reader.reportFlattened("nested-table");

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+Correctness fixes in the OpenDocument text reader, and one in the fit-to-width measurement it shares with Word previews, found by the review of the 0.4.0 changeset and left open at release. No API, limit or dependency changes; XLSX, PPTX and OpenDocument spreadsheet previews are untouched, and a Word preview in the viewer's own scroll area fits to exactly the width it did before.
+
+### Fixed
+
+- A list that names no list style of its own is numbered from its paragraph style's `style:list-style-name`, as OpenDocument allows. Such a list was shown with bullets, although the style resolver already read the attribute.
+- Only the first paragraph of a list item inside a table cell carries the label. Every paragraph of the item was labelled, so an item of two paragraphs was numbered twice with the same number.
+- Table content left out because a table reached one of the preview's fixed caps — 10,000 rows, 256 columns or 1,000 paragraphs in a cell — is now counted in the notice above the document. It used to disappear with no notice, against the contract that nothing is dropped silently. Three diagnostic codes are new: `odf.bounds.table-rows`, `odf.bounds.table-columns` and `odf.bounds.cell-paragraphs`.
+- The limit on a paragraph's text length also applies to text merged into the preceding run. It was checked only when a new run was pushed, so a paragraph whose text all carried the same formatting could grow past the limit — a hundredfold in the measured case. The check is now a running count rather than a sum over every run, so it also stops being quadratic in the number of runs.
+- The count of images and shapes that cannot be shown is the number of them, not 1. Each kind was reported once, so the message said "1 image or shape is not shown" however many were missing.
+- A text document parsed on the main thread can be cancelled: the renderer dropped the caller's `AbortSignal`, although the spreadsheet renderer has always passed it on.
+- Fitting a text document to the width available no longer leaves it narrower when the document carries a notice. The width was measured by subtracting a fixed 32 pixels for the viewer scroll area's padding, which `clientWidth` includes; the notice sits in a wrapper between the pages and that scroll area, so the padding was subtracted a second time and such a document fitted about 32 pixels narrower than the same document with nothing to report. The padding is now measured, which also makes the fit correct for an application that gives the scroll area padding of its own.
+- A flat `.fodt` document whose `office:mimetype` attribute is delimited by single quotes is detected. XML allows either quote character; only double quotes were matched, so such a document was unrecognised, or was taken for a package and refused. The media type is still matched as a whole value, so master documents and web templates stay unclaimed.
+
 ## 0.4.0 - 2026-11-11
 
 This release adds OpenDocument text previews and fixes two resource-exhaustion issues in the handling of untrusted files. It is a minor version because the public `FileFormat` type gains three members and the default renderer registry serves them; existing code that does not switch exhaustively over `FileFormat` works without changes. Upgrading is recommended for applications that preview files from untrusted sources. The package still has no runtime dependencies.

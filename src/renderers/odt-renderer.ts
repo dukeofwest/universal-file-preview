@@ -21,7 +21,7 @@ export class OdtRenderer implements FileRenderer {
 
   render(context: RendererContext): RendererInstance {
     const format = context.format === "fodt" ? "fodt" : context.format === "ott" ? "ott" : "odt";
-    return this.renderParsed(parseModel(format, context.bytes, context.file.name, { locale: viewerLocale() }), context);
+    return this.renderParsed(parseModel(format, context.bytes, context.file.name, { locale: viewerLocale(), signal: context.signal }), context);
   }
 
   /** Renders a parsed model (from the main thread or the parser worker). Internal. */

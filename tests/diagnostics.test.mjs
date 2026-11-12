@@ -17,6 +17,9 @@ const specifiedCodes = {
   "odf.precision-as-shown": "accuracy",
   "odf.covered-cell-content": "warning",
   "odf.bounds.clipped": "warning",
+  "odf.bounds.table-rows": "warning", // added in M3.6: table rows past the preview's limit
+  "odf.bounds.table-columns": "warning", // added in M3.6: table cells past the preview's limit
+  "odf.bounds.cell-paragraphs": "warning", // added in M3.6: paragraphs past a cell's limit
   "odf.unsupported.drawings": "warning",
   "odf.unsupported.charts": "warning",
   "odf.unsupported.conditional-formatting": "warning",
