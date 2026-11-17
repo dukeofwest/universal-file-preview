@@ -7,7 +7,7 @@ import { parseDocx, parsePptx } from "../dist/parsers/ooxml.js";
 import { parseXlsx } from "../dist/parsers/xlsx.js";
 import { parseXml } from "../dist/xml/xml-parser.js";
 import { tiffToPng } from "../dist/parsers/tiff.js";
-import { createImageUrl, imageDimensions, revokeImageUrls, MAX_IMAGE_PIXELS, MAX_DOCUMENT_PIXELS } from "../dist/renderers/image-url.js";
+import { createImageUrl, imageDimensions, revokeImageUrls, MAX_IMAGE_PIXELS, MAX_DOCUMENT_PIXELS, MAX_DOCUMENT_SVG_BYTES } from "../dist/renderers/image-url.js";
 import { makeZip } from "./helpers/zip.mjs";
 
 // Resource limits for hostile documents: decompression budget and part caching, ZIP structure,
@@ -369,4 +369,36 @@ test("createImageUrl refuses images over 40 megapixels and over the per-document
   const again = createImageUrl(png(10, 10), "image/png", live);
   assert.ok(again, "released images no longer count");
   revokeImageUrls([again]);
+});
+
+test("createImageUrl refuses SVG past the per-document source budget", () => {
+  // Reducing SVG to the allowlist happens while the document is rendered, on the main thread, and was
+  // bounded per image but not per document. Media parts are exempt from the package expansion check,
+  // so a package of a few hundred KiB can hold 67 images of 3.8 MiB at the element cap: about 82
+  // seconds of work, measured, and the same again for every use of one such image.
+  assert.equal(MAX_DOCUMENT_SVG_BYTES, 4 * MiB);
+  const head = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">';
+  // Long path data rather than many elements: the budget counts bytes, and this keeps the test quick.
+  const unit = `<path d="${"M0 0L10 10".repeat(60)}"/>`;
+  const svg = size => new TextEncoder().encode(`${head}${unit.repeat(Math.round((size - head.length - 6) / unit.length))}</svg>`);
+  const live = [];
+  for (let index = 0; index < 2; index++) { const url = createImageUrl(svg(1.5 * MiB), "image/svg+xml", live); assert.ok(url, `image ${index + 1} fits`); live.push(url); }
+  assert.equal(createImageUrl(svg(1.5 * MiB), "image/svg+xml", live), undefined, "a third 1.5 MiB image is past the budget");
+  const small = createImageUrl(svg(0.5 * MiB), "image/svg+xml", live);
+  assert.ok(small, "a smaller image still fits in what is left");
+  live.push(small);
+  revokeImageUrls(live);
+  assert.equal(live.length, 0);
+  const again = createImageUrl(svg(1.5 * MiB), "image/svg+xml", live);
+  assert.ok(again, "a released document starts with a full budget");
+  revokeImageUrls([again]);
+
+  // The same part is one array however often a document shows it: one URL, sanitized and charged once.
+  const shared = svg(1.5 * MiB), reuse = [];
+  const first = createImageUrl(shared, "image/svg+xml", reuse);
+  assert.ok(first, "the first use is shown");
+  reuse.push(first);
+  for (let index = 0; index < 5; index++) assert.equal(createImageUrl(shared, "image/svg+xml", reuse), first, "every later use shares that URL");
+  assert.ok(createImageUrl(svg(2 * MiB), "image/svg+xml", reuse), "showing it six times spent the budget once");
+  revokeImageUrls(reuse);
 });

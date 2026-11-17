@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-Correctness fixes in the OpenDocument text reader, and one in the fit-to-width measurement it shares with Word previews, found by the review of the 0.4.0 changeset and left open at release. No API, limit or dependency changes; XLSX, PPTX and OpenDocument spreadsheet previews are untouched, and a Word preview in the viewer's own scroll area fits to exactly the width it did before.
+One resource limit for SVG images, which applies to every format that can carry them, and correctness fixes in the OpenDocument text reader and in the fit-to-width measurement it shares with Word previews. All were found by the review of the 0.4.0 changeset and left open at release. No API or dependency changes; a Word preview in the viewer's own scroll area fits to exactly the width it did before.
+
+### Security
+
+- A document may have at most 4 MiB of distinct SVG source reduced to the allowlist, and an image shown in several places is sanitized once and shares one `blob:` URL. Sanitizing happens while a document is rendered, which is the page's main thread even in worker mode, and it was bounded per image but not per document: media parts are exempt from the package expansion check, so a package of a few hundred kilobytes could carry 67 images of 3.8 MiB each and occupy the page for about 82 seconds, and one such image shown in many places cost that again for every use. The worst case is now about 1.6 seconds. The new limit is `MAX_DOCUMENT_SVG_BYTES`; images past it are not shown, as oversized raster images already were.
 
 ### Fixed
 
