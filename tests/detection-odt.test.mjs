@@ -44,7 +44,8 @@ test("the text kinds this library does not read stay unknown", () => {
   assert.equal(detectFormat("page.oth", "", oth), "unknown");
   assert.equal(detectFormat("book.odm", "", undefined), "unknown");
   assert.equal(detectFormat("x.zip", "", makeOdfPackage({ mimetype: `${ODT}-master-template`, content: textContent })), "unknown");
-  assert.equal(detectFormat("deck.odp", "", makeOdfPackage({ mimetype: ODP, content: textContent })), "unknown", "presentations arrive in phase 4");
+  // Presentations arrived in phase 4 and are their own format; the text reader must not claim them.
+  assert.equal(detectFormat("deck.odp", "", makeOdfPackage({ mimetype: ODP, content: textContent })), "odp");
 });
 
 test("text documents are detected from the MIME type or the extension alone", () => {
@@ -155,4 +156,15 @@ test("the validator's messages never quote text taken from the document", () => 
   const error = (() => { try { readPackage(bytes); return undefined; } catch (reason) { return reason; } })();
   assert.ok(error, "an unknown media type must be refused");
   assert.equal(error.message.includes(spoof), false, error.message);
+});
+
+test("a flat document is detected whichever quote character delimits its media type", () => {
+  // XML allows either quote; matching only double quotes left a single-quoted document unrecognised,
+  // and a flat file reaching the package parser is refused rather than shown.
+  const single = new TextEncoder().encode(odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document office:version="1.3" office:mimetype='${ODT}'><office:body><office:text><text:p>Hello</text:p></office:text></office:body></office:document>`));
+  assert.equal(detectFormat("letter.fodt", "", single), "fodt");
+  assert.equal(detectFormat("upload.bin", ODT, single), "fodt", "a flat document is not taken for a package");
+  // The whole attribute value is still matched, so the kinds this library does not read stay unknown.
+  const master = new TextEncoder().encode(odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document office:version="1.3" office:mimetype='${ODM}'><office:body><office:text><text:p>Hello</text:p></office:text></office:body></office:document>`));
+  assert.equal(detectFormat("upload.bin", ODT, master), "odt", "the flat sniffer does not claim a master document");
 });

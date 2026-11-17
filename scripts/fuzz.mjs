@@ -36,7 +36,7 @@ async function corpus() {
   const demo = mkdtempSync(join(tmpdir(), "ufp-fuzz-demo-"));
   try { await writeDemoSamples(demo); for (const name of readdirSync(demo)) files.push({ name, bytes: new Uint8Array(readFileSync(join(demo, name))) }); }
   finally { rmSync(demo, { recursive: true, force: true }); }
-  const { makeOds, makeFods, makeOdt, makeFodt, OTT_MEDIA_TYPE } = await import(pathToFileURL(join(root, "tests", "helpers", "odf.mjs")));
+  const { makeOds, makeFods, makeOdt, makeFodt, makeOdp, makeFodp, OTT_MEDIA_TYPE, OTP_MEDIA_TYPE } = await import(pathToFileURL(join(root, "tests", "helpers", "odf.mjs")));
   const body = '<table:table table:name="S"><table:table-row><table:table-cell office:value-type="float" office:value="1.5"><text:p>1.5</text:p></table:table-cell><table:table-cell office:value-type="string" table:number-columns-repeated="3"><text:p>a<text:span>b</text:span></text:p></table:table-cell></table:table-row></table:table>';
   files.push({ name: "s.ods", bytes: makeOds({ body }) }, { name: "s.fods", bytes: makeFods({ body }) });
   const textBody = '<text:h text:outline-level="1">Title</text:h><text:p text:style-name="P1">a<text:span text:style-name="T1">b</text:span><text:s text:c="3"/><text:tab/><text:line-break/></text:p><text:list text:style-name="L1"><text:list-item><text:p>one</text:p></text:list-item><text:list-item><text:p>two</text:p><text:list><text:list-item><text:p>deep</text:p></text:list-item></text:list></text:list-item></text:list><table:table table:name="T" table:style-name="Ta1"><table:table-column table:number-columns-repeated="2" table:style-name="co1"/><table:table-row><table:table-cell table:style-name="ce1" table:number-columns-spanned="2"><text:p>cell</text:p></table:table-cell><table:covered-table-cell/></table:table-row></table:table>';
@@ -48,6 +48,28 @@ async function corpus() {
     { name: "t.odt", bytes: makeOdt(textOptions) },
     { name: "t.ott", bytes: makeOdt({ ...textOptions, mimetype: OTT_MEDIA_TYPE }) },
     { name: "t.fodt", bytes: makeFodt(textOptions) },
+  );
+  // A presentation covering what the slide reader reads: text boxes, lists, images, shapes, lines and a table.
+  const slideBody = [
+    '<draw:page draw:name="p1" draw:style-name="dp1">',
+    '<draw:frame presentation:class="title" draw:style-name="gr1" svg:x="1cm" svg:y="1cm" svg:width="20cm" svg:height="3cm"><draw:text-box><text:p text:style-name="P1">Title <text:span text:style-name="T1">bold</text:span></text:p></draw:text-box></draw:frame>',
+    '<draw:frame svg:x="1cm" svg:y="5cm" svg:width="10cm" svg:height="8cm"><draw:text-box><text:list text:style-name="L1"><text:list-item><text:p>one</text:p><text:p>still one</text:p></text:list-item><text:list-item><text:p>two</text:p></text:list-item></text:list></draw:text-box></draw:frame>',
+    '<draw:frame svg:x="12cm" svg:y="5cm" svg:width="4cm" svg:height="3cm"><draw:image xlink:href="Pictures/p.png"/><svg:desc>a picture</svg:desc></draw:frame>',
+    '<draw:custom-shape draw:style-name="gr1" svg:x="12cm" svg:y="9cm" svg:width="4cm" svg:height="3cm"><draw:enhanced-geometry draw:type="round-rectangle"/><text:p>in shape</text:p></draw:custom-shape>',
+    '<draw:line draw:style-name="gr1" svg:x1="1cm" svg:y1="14cm" svg:x2="20cm" svg:y2="14cm"/>',
+    '<draw:frame svg:x="1cm" svg:y="15cm" svg:width="8cm" svg:height="3cm"><table:table table:name="T"><table:table-row><table:table-cell><text:p>a</text:p></table:table-cell><table:table-cell><text:p>b</text:p></table:table-cell></table:table-row></table:table></draw:frame>',
+    "<presentation:notes><draw:frame svg:x=\"0cm\" svg:y=\"0cm\" svg:width=\"4cm\" svg:height=\"4cm\"><draw:text-box><text:p>note</text:p></draw:text-box></draw:frame></presentation:notes>",
+    "</draw:page>",
+  ].join("");
+  const slideAutomatic = '<style:style style:name="dp1" style:family="drawing-page"><style:drawing-page-properties draw:fill="solid" draw:fill-color="#203040"/></style:style><style:style style:name="gr1" style:family="graphic"><style:graphic-properties draw:fill="solid" draw:fill-color="#884422" draw:stroke="dash" svg:stroke-color="#111111" svg:stroke-width="0.1cm"/></style:style><style:style style:name="P1" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/></style:style><style:style style:name="T1" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>';
+  const slideStyles = '<text:list-style style:name="L1"><text:list-level-style-number text:level="1" style:num-format="1" style:num-suffix="."/></text:list-style>';
+  const slideLayout = '<style:page-layout style:name="PM1"><style:page-layout-properties fo:page-width="25.4cm" fo:page-height="14.29cm"/></style:page-layout>';
+  const onePixelPng = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea735a99d0000000049454e44ae426082", "hex");
+  const slideOptions = { body: slideBody, automatic: slideAutomatic, styles: slideStyles, styleAutomatic: slideLayout, extra: { "Pictures/p.png": onePixelPng } };
+  files.push(
+    { name: "d.odp", bytes: makeOdp(slideOptions) },
+    { name: "d.otp", bytes: makeOdp({ ...slideOptions, mimetype: OTP_MEDIA_TYPE }) },
+    { name: "d.fodp", bytes: makeFodp({ body: slideBody, automatic: `${slideLayout}${slideAutomatic}`, styles: slideStyles }) },
   );
   const { svgSanitizerCases } = await import(pathToFileURL(join(root, "tests", "helpers", "security-fixtures.mjs")));
   for (const entry of svgSanitizerCases("http://attacker.invalid")) files.push({ name: "case.svg", bytes: new TextEncoder().encode(entry.svg) });
@@ -126,7 +148,7 @@ import { parentPort } from "node:worker_threads";
 const { detectFormat } = await import(${JSON.stringify(pathToFileURL(join(root, "dist", "detection", "detect-format.js")).href)});
 const { parseModel } = await import(${JSON.stringify(pathToFileURL(join(root, "dist", "parsers", "parse-model.js")).href)});
 const { sanitizeSvg } = await import(${JSON.stringify(pathToFileURL(join(root, "dist", "renderers", "image-url.js")).href)});
-const documents = new Set(["docx", "xlsx", "pptx", "ods", "ots", "fods", "odt", "ott", "fodt"]);
+const documents = new Set(["docx", "xlsx", "pptx", "ods", "ots", "fods", "odt", "ott", "fodt", "odp", "otp", "fodp"]);
 parentPort.on("message", ({ name, bytes }) => {
   const started = performance.now();
   let result = "handled", detail;

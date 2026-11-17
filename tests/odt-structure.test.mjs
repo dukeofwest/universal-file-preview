@@ -152,3 +152,47 @@ test("lists and tables work with renamed prefixes", () => {
   assert.equal(paragraphs(renamed)[0].list.label, "1.");
   assert.equal(text(tables(renamed)[0].rows[0].cells[0].paragraphs[0]), "A");
 });
+
+test("rows and cells past the table limits are reported rather than dropped silently", () => {
+  // The limits stay; what changes is that the reader is told. Content that disappears with no notice
+  // contradicts the contract the diagnostics exist for.
+  const bomb = '<table:table table:name="T"><table:table-row table:number-rows-repeated="99999999"><table:table-cell><text:p>x</text:p></table:table-cell></table:table-row></table:table>';
+  const model = parse({ body: bomb });
+  assert.equal(tables(model)[0].rows.length, 10_000);
+  const rows = model.diagnostics?.find(entry => entry.code === "odf.bounds.table-rows");
+  assert.ok(rows, "the rows left out are reported");
+  assert.equal(rows.count, 99_999_999 - 10_000);
+  assert.equal(rows.severity, "warning", "it must be visible, not info-only");
+
+  const wide = `<table:table table:name="T"><table:table-row>${'<table:table-cell><text:p>c</text:p></table:table-cell>'.repeat(300)}</table:table-row></table:table>`;
+  const wideModel = parse({ body: wide });
+  assert.equal(tables(wideModel)[0].rows[0].cells.length, 256);
+  const cells = wideModel.diagnostics?.find(entry => entry.code === "odf.bounds.table-columns");
+  assert.ok(cells, "the cells left out are reported");
+  assert.equal(cells.count, 300 - 256);
+});
+
+test("a list that names no list style takes its numbering from the paragraph style", () => {
+  // ODF 1.3 Part 3 5.3.1: a text:list need not name a style, in which case the paragraph style's
+  // style:list-style-name supplies the numbering. Such a list used to be shown with bullets.
+  const styles = numbered + '<style:style style:name="NumPara" style:family="paragraph" style:list-style-name="L1"/>';
+  const found = paragraphs(parse({ styles, body: `<text:list>${item("One", "NumPara")}${item("Two", "NumPara")}</text:list>` }));
+  assert.deepEqual(found.map(text), ["One", "Two"]);
+  assert.deepEqual(found.map(paragraph => paragraph.list.label), ["1.", "2."]);
+  assert.deepEqual(found.map(paragraph => paragraph.list.kind), ["ordered", "ordered"]);
+  // A list that does name one is unaffected, and the paragraph style must not override it.
+  const own = paragraphs(parse({ styles: styles + bulleted, body: `<text:list text:style-name="LB">${item("Bullet", "NumPara")}</text:list>` }));
+  assert.equal(own[0].list.label, "-");
+});
+
+test("a later paragraph of a list item in a cell is not labelled again", () => {
+  // Outside a cell only an item's first paragraph carries the label; inside one, every paragraph of
+  // the item was labelled, so a two-paragraph item was numbered twice with the same number.
+  const first = "<text:list-item><text:p>One</text:p><text:p>still one</text:p></text:list-item>";
+  const body = `<table:table table:name="T"><table:table-row><table:table-cell><text:list text:style-name="L1">${first}${item("Two")}</text:list></table:table-cell></table:table-row></table:table>`;
+  const [table] = tables(parse({ styles: numbered, body }));
+  const found = table.rows[0].cells[0].paragraphs;
+  assert.deepEqual(found.map(text), ["One", "still one", "Two"]);
+  assert.deepEqual(found.map(paragraph => paragraph.list.label), ["1.", "", "2."]);
+  assert.deepEqual(found.map(paragraph => paragraph.list.level), [0, 0, 0], "the continuation stays indented");
+});

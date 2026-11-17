@@ -1,5 +1,5 @@
 import type { PreviewDiagnostic } from "./diagnostics.js";
-import type { SpreadsheetCell, SpreadsheetColumn, SpreadsheetRange, SpreadsheetStyle, Workbook, WordDocument, Worksheet } from "./model.js";
+import type { Presentation, SpreadsheetCell, SpreadsheetColumn, SpreadsheetRange, SpreadsheetStyle, Workbook, WordDocument, Worksheet } from "./model.js";
 
 /**
  * Format-neutral spreadsheet model extensions (implementation specification §4.4 and §6,
@@ -18,7 +18,7 @@ import type { SpreadsheetCell, SpreadsheetColumn, SpreadsheetRange, SpreadsheetS
  */
 
 /** Where a model came from. Reused by the document and presentation models in later phases. */
-export type DocumentSourceFormat = "xlsx" | "ods" | "ots" | "fods" | "odt" | "ott" | "fodt";
+export type DocumentSourceFormat = "xlsx" | "ods" | "ots" | "fods" | "odt" | "ott" | "fodt" | "odp" | "otp" | "fodp";
 export type DocumentSource = {
   format: DocumentSourceFormat;
   /** Producing application as declared by the file, e.g. meta:generator. */
@@ -34,6 +34,16 @@ export type DocumentSource = {
  * unchanged (decision D2): renderers read these through this type, and the DOCX parser never sets them.
  */
 export type ExtendedWordDocument = WordDocument & {
+  source?: DocumentSource;
+  diagnostics?: PreviewDiagnostic[];
+};
+
+/**
+ * A Presentation with the fields the OpenDocument presentation parser adds. The public Presentation
+ * is unchanged (decision D2): renderers read these through this type, and the PPTX parser never
+ * sets them, so one renderer serves both.
+ */
+export type ExtendedPresentation = Presentation & {
   source?: DocumentSource;
   diagnostics?: PreviewDiagnostic[];
 };

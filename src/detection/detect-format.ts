@@ -1,15 +1,18 @@
-export type FileFormat = "pdf" | "docx" | "xlsx" | "pptx" | "doc" | "xls" | "ppt" | "gif" | "png" | "jpeg" | "webp" | "svg" | "ods" | "ots" | "fods" | "odt" | "ott" | "fodt" | "unknown";
+export type FileFormat = "pdf" | "docx" | "xlsx" | "pptx" | "doc" | "xls" | "ppt" | "gif" | "png" | "jpeg" | "webp" | "svg" | "ods" | "ots" | "fods" | "odt" | "ott" | "fodt" | "odp" | "otp" | "fodp" | "unknown";
 
 const extensions: Readonly<Record<string, FileFormat>> = {
   pdf: "pdf", docx: "docx", xlsx: "xlsx", pptx: "pptx", doc: "doc", xls: "xls", ppt: "ppt",
   gif: "gif", png: "png", jpg: "jpeg", jpeg: "jpeg", webp: "webp", svg: "svg",
   ods: "ods", ots: "ots", fods: "fods", odt: "odt", ott: "ott", fodt: "fodt",
+  odp: "odp", otp: "otp", fodp: "fodp",
 };
 
 const ODS_MEDIA_TYPE = "application/vnd.oasis.opendocument.spreadsheet";
 const OTS_MEDIA_TYPE = "application/vnd.oasis.opendocument.spreadsheet-template";
 const ODT_MEDIA_TYPE = "application/vnd.oasis.opendocument.text";
 const OTT_MEDIA_TYPE = "application/vnd.oasis.opendocument.text-template";
+const ODP_MEDIA_TYPE = "application/vnd.oasis.opendocument.presentation";
+const OTP_MEDIA_TYPE = "application/vnd.oasis.opendocument.presentation-template";
 const ODF_OFFICE_NAMESPACE = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
 
 const byMime: Readonly<Record<string, FileFormat>> = {
@@ -20,11 +23,13 @@ const byMime: Readonly<Record<string, FileFormat>> = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
   [ODS_MEDIA_TYPE]: "ods", [OTS_MEDIA_TYPE]: "ots", [ODT_MEDIA_TYPE]: "odt", [OTT_MEDIA_TYPE]: "ott",
+  [ODP_MEDIA_TYPE]: "odp", [OTP_MEDIA_TYPE]: "otp",
 };
 
 /** OpenDocument media types this library can identify inside a package's mimetype entry. */
 const odfPackageFormats: Readonly<Record<string, FileFormat>> = {
   [ODS_MEDIA_TYPE]: "ods", [OTS_MEDIA_TYPE]: "ots", [ODT_MEDIA_TYPE]: "odt", [OTT_MEDIA_TYPE]: "ott",
+  [ODP_MEDIA_TYPE]: "odp", [OTP_MEDIA_TYPE]: "otp",
 };
 
 export function detectFormat(name: string, mimeType = "", bytes?: Uint8Array): FileFormat {
@@ -45,6 +50,7 @@ export function detectFormat(name: string, mimeType = "", bytes?: Uint8Array): F
     }
     if ((extensionOf(name) === "fods" || mime === ODS_MEDIA_TYPE) && isFlatSpreadsheet(bytes)) return "fods";
     if ((extensionOf(name) === "fodt" || mime === ODT_MEDIA_TYPE) && isFlatText(bytes)) return "fodt";
+    if ((extensionOf(name) === "fodp" || mime === ODP_MEDIA_TYPE) && isFlatPresentation(bytes)) return "fodp";
     const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 256))).trimStart();
     if (/^(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(prefix)) return "svg";
     if (ascii(bytes, 0, Math.min(bytes.length, 1024)).includes("%PDF-")) return "pdf";
@@ -84,12 +90,45 @@ function isFlatSpreadsheet(bytes: Uint8Array): boolean {
 /**
  * A flat OpenDocument text document declares the office namespace and the text media type near its start.
  * The media type is matched as a whole attribute value, because "...opendocument.text" is a prefix of the
- * master-document, web-template and master-template types, which this library does not read.
+ * master-document, web-template and master-template types, which this library does not read. Either quote
+ * character delimits it: XML allows both, so a producer that writes single quotes is read the same way.
  */
-const flatTextMediaType = new RegExp(`mimetype\\s*=\\s*"(?:${ODT_MEDIA_TYPE}|${OTT_MEDIA_TYPE})"`.replace(/\./g, "\\."));
+const flatTextMediaType = flatMediaTypePattern(ODT_MEDIA_TYPE, OTT_MEDIA_TYPE);
 function isFlatText(bytes: Uint8Array): boolean {
   const text = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
   return text.includes(ODF_OFFICE_NAMESPACE) && flatTextMediaType.test(text);
+}
+
+/**
+ * A flat OpenDocument presentation, matched the same way as a flat text document: the office
+ * namespace plus the presentation or presentation-template media type as a whole attribute value,
+ * delimited by either quote character. Matching by prefix is wrong here too, since the drawing and
+ * graphics kinds this library does not read share the start of the type.
+ */
+const flatPresentationMediaType = flatMediaTypePattern(ODP_MEDIA_TYPE, OTP_MEDIA_TYPE);
+function isFlatPresentation(bytes: Uint8Array): boolean {
+  const text = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
+  return text.includes(ODF_OFFICE_NAMESPACE) && flatPresentationMediaType.test(text);
+}
+
+/**
+ * Escapes a literal so it matches itself inside a regular expression, every metacharacter included.
+ * A declaration rather than a const: the patterns below are built as this module loads.
+ */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Matches one of `types` as the whole value of an `office:mimetype` attribute, delimited by either
+ * quote character, since XML allows both. Matching the value as a whole matters: several OpenDocument
+ * media types this library does not read have another one as their prefix.
+ *
+ * Each type is escaped in full rather than having dots replaced in the assembled pattern, which
+ * escaped only the characters that happened to need it in today's constants.
+ */
+function flatMediaTypePattern(...types: readonly string[]): RegExp {
+  return new RegExp(`mimetype\\s*=\\s*(["'])(?:${types.map(escapeRegExp).join("|")})\\1`);
 }
 
 /** Own-property lookup: names and MIME types are untrusted and must not resolve inherited properties such as "constructor". */

@@ -169,3 +169,24 @@ test("a document with more blocks than the limit is refused", () => {
 test("a package that is not a text document is refused before anything is read", () => {
   assert.throws(() => parseOdt(makeOdt({ mimetype: "application/vnd.oasis.opendocument.spreadsheet", body: "<text:p>x</text:p>" }), "x.odt"), error => error?.code === "unsupported-format");
 });
+
+test("the paragraph length limit also bounds text merged into one run", () => {
+  // Text with the same formatting is appended to the previous run. The limit was checked only when a
+  // new run was pushed, so a paragraph whose text all merged into one run could grow past it.
+  const body = `<text:p>${Array.from({ length: 10 }, () => "x".repeat(20)).join("<text:tab/>")}</text:p>`;
+  const runs = paragraphs(parse({ body }))[0].runs;
+  assert.equal(runs.length, 1, "the segments merge into one run");
+  assert.equal(runs[0].text.length, 209);
+  assert.throws(() => parseOdt(makeOdt({ body }), "big.odt", { limits: { maxParagraphTextLength: 100 } }),
+    error => error?.name === "PreviewError" && error.code === "resource-limit");
+});
+
+test("every drawing that cannot be shown is counted, not just the first", () => {
+  // The message states how many images or shapes are missing, so reporting the kind once was wrong.
+  const frame = '<draw:frame><draw:object xlink:href="./Object 1"/></draw:frame>';
+  const model = parse({ body: `<text:p>a${frame}b${frame}</text:p><text:p>c${frame}</text:p>` });
+  const drawings = model.diagnostics?.find(entry => entry.code === "odf.unsupported.drawings");
+  assert.ok(drawings, "the drawings are reported");
+  assert.equal(drawings.count, 3);
+  assert.match(drawings.message, /3 images or shapes are not shown/);
+});

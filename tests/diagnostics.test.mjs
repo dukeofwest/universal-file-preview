@@ -17,6 +17,14 @@ const specifiedCodes = {
   "odf.precision-as-shown": "accuracy",
   "odf.covered-cell-content": "warning",
   "odf.bounds.clipped": "warning",
+  "odf.bounds.table-rows": "warning", // added in M3.6: table rows past the preview's limit
+  "odf.bounds.table-columns": "warning", // added in M3.6: table cells past the preview's limit
+  "odf.bounds.cell-paragraphs": "warning",
+  "odf.unsupported.slide-content": "warning", // added in 4.2: slide content this preview cannot show
+  "odf.unsupported.notes": "info", // added in 4.2: speaker notes are not shown
+  "odf.approximated.shapes": "accuracy", // added in 4.4: an outline drawn as a rectangle
+  "odf.bounds.slides": "warning", // added in 4.2: slides past the preview limit
+  "odf.bounds.slide-elements": "warning", // added in 4.2: objects past the per-slide limit // added in M3.6: paragraphs past a cell's limit
   "odf.unsupported.drawings": "warning",
   "odf.unsupported.charts": "warning",
   "odf.unsupported.conditional-formatting": "warning",

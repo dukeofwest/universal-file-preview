@@ -48,6 +48,20 @@ export const MAX_IMAGE_PIXELS = 40_000_000;
 export const MAX_DOCUMENT_PIXELS = 120_000_000;
 const pixelsByUrl = new Map<string, number>();
 
+/**
+ * Distinct SVG source bytes one shown document may have sanitized.
+ *
+ * Reducing SVG to the allowlist happens while the document is rendered, which is the page's main
+ * thread even in worker mode, and it was bounded per image but not per document. Media parts are
+ * exempt from the package expansion check, so a package may hold 256 MiB of SVG source in a few
+ * hundred kilobytes: 67 images of 3.8 MiB at the element cap cost about 82 seconds, measured, and
+ * one such image shown in many places cost that again for every use. The worst case is now about
+ * 3 seconds, and the blob bytes a document holds are bounded too, which nothing did for SVG.
+ */
+export const MAX_DOCUMENT_SVG_BYTES = 4 * 1024 * 1024;
+/** Per document (keyed by its URL list): the SVG source charged so far, and one blob URL per image. */
+const svgByList = new WeakMap<readonly string[], { charged: number; urls: Map<Uint8Array, string> }>();
+
 /** Pixel dimensions from a raster image header, or undefined when the header cannot be read. */
 export function imageDimensions(bytes: Uint8Array, type: string): { width: number; height: number } | undefined {
   const u16le = (at: number) => bytes[at]! | bytes[at + 1]! << 8, u16be = (at: number) => bytes[at]! << 8 | bytes[at + 1]!;
@@ -86,14 +100,25 @@ export function imageDimensions(bytes: Uint8Array, type: string): { width: numbe
 /**
  * A blob URL for image bytes, or undefined for unsupported, mislabelled, invalid or oversized
  * images. `liveUrls` is the document's list of image URLs that are still shown; the new image is
- * refused if it would take their decoded pixels over MAX_DOCUMENT_PIXELS. The caller adds the URL
- * to that list and releases it with revokeImageUrls.
+ * refused if it would take their decoded pixels over MAX_DOCUMENT_PIXELS, or the document's SVG
+ * source over MAX_DOCUMENT_SVG_BYTES. The caller adds the URL to that list and releases it with
+ * revokeImageUrls.
  */
 export function createImageUrl(bytes: Uint8Array, declaredType: string, liveUrls: readonly string[] = []): string | undefined {
   const type = imageBlobType(bytes, declaredType);
   if (!type) return undefined;
-  let content = bytes, pixels = 0;
-  if (type === SVG) { try { content = sanitizeSvg(bytes); } catch { return undefined; } }
+  let content = bytes, pixels = 0, svg: { charged: number; urls: Map<Uint8Array, string> } | undefined;
+  if (type === SVG) {
+    svg = svgByList.get(liveUrls);
+    if (!svg) svgByList.set(liveUrls, svg = { charged: 0, urls: new Map() });
+    // A package returns one array per part however often a document refers to it, so an image shown
+    // in many places is sanitized once, shares one blob URL and is charged once.
+    const shown = svg.urls.get(bytes);
+    if (shown) return shown;
+    if (svg.charged + bytes.length > MAX_DOCUMENT_SVG_BYTES) return undefined;
+    svg.charged += bytes.length;
+    try { content = sanitizeSvg(bytes); } catch { return undefined; }
+  }
   else {
     // Decoding is left to the browser; refuse images whose header declares more pixels than allowed.
     const size = imageDimensions(bytes, type);
@@ -107,12 +132,14 @@ export function createImageUrl(bytes: Uint8Array, declaredType: string, liveUrls
   const copy = new Uint8Array(content.byteLength); copy.set(content);
   const url = URL.createObjectURL(new Blob([copy.buffer], { type }));
   if (pixels) pixelsByUrl.set(url, pixels);
+  svg?.urls.set(bytes, url);
   return url;
 }
 
 /** Revokes image URLs made by createImageUrl and empties the list. */
 export function revokeImageUrls(urls: string[]): void {
   for (const url of urls.splice(0)) { URL.revokeObjectURL(url); pixelsByUrl.delete(url); }
+  svgByList.delete(urls);
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";

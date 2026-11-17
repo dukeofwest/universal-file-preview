@@ -81,13 +81,32 @@ export class DocxRenderer implements FileRenderer {
       element: root,
       setZoom(zoom) { root.style.setProperty("zoom", String(Math.max(0.1, Math.min(2, zoom)))); },
       fitToWidth() {
-        const available = root.parentElement?.clientWidth ?? pageWidth;
-        const scale = Math.max(0.1, Math.min(2, (available - 32) / pageWidth));
+        // An unmounted document has nothing to measure, and keeps the scale it has always been given.
+        const available = root.parentElement ? contentWidth(root.parentElement) : pageWidth - 32;
+        const scale = Math.max(0.1, Math.min(2, available / pageWidth));
         if (scale === 1) root.style.removeProperty("zoom"); else root.style.setProperty("zoom", String(scale));
       },
       destroy() { revokeImageUrls(imageUrls); root.replaceChildren(); },
     };
   }
+}
+
+/**
+ * The width a page may occupy inside `parent`: its content box.
+ *
+ * `clientWidth` includes padding, and the viewer's scroll area has 16px of it, so the padding has to
+ * come off - but only once. Subtracting a fixed 32px assumed the page's parent was always that scroll
+ * area. An OpenDocument text document with a diagnostics notice puts a wrapper in between, whose
+ * `clientWidth` is already the content box, so the viewer's padding came off a second time and the
+ * same document fitted smaller whenever it had something to report. Measuring also makes the fit
+ * correct for an embedder who gives the scroll area padding of its own.
+ */
+function contentWidth(parent: HTMLElement): number {
+  // No computed style outside a browser (a server-rendered DOM, for one): the padding is then unknown
+  // rather than zero, so the width is used as it stands instead of guessing at it.
+  const style = typeof getComputedStyle === "function" ? getComputedStyle(parent) : undefined;
+  if (!style) return parent.clientWidth;
+  return parent.clientWidth - ((Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0));
 }
 
 function renderParagraph(paragraph: Paragraph, imageUrls: string[], page?: WordPageLayout, pageNumber = 1): HTMLElement {

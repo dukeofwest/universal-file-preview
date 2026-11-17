@@ -1,7 +1,7 @@
 {
   "name": "@dukeofwest/universal-file-preview",
-  "version": "0.4.0",
-  "description": "Zero-dependency browser previews for DOCX, XLSX, PPTX, ODS and images, in TypeScript. Optional Web Worker parsing, strict Content Security Policy and Trusted Types support.",
+  "version": "0.5.0",
+  "description": "Zero-dependency browser previews for DOCX, XLSX, PPTX, OpenDocument text, spreadsheets and presentations, and images, in TypeScript. Optional Web Worker parsing, strict Content Security Policy and Trusted Types support.",
   "keywords": [
     "file-preview",
     "document-viewer",

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { XmlTokenizer } from "../dist/xml/xml-tokenizer.js";
 import { parseOds } from "../dist/parsers/odf/ods.js";
+import { createImageUrl, revokeImageUrls } from "../dist/renderers/image-url.js";
 import { makeOds } from "./helpers/odf.mjs";
 
 // Throughput benchmarks with absolute time limits (the specification's performance budgets). They measure
@@ -38,4 +39,25 @@ test("a 100,000-row by 10-column spreadsheet parses within the specification's b
   // for other suites (such as the resource-limit tests) competing for the CPU at the same time.
   assert.ok(elapsed < 30_000, `took ${elapsed.toFixed(0)} ms`);
   assert.ok(growth < 600 * 1048576, `heap grew ${(growth / 1048576).toFixed(0)} MiB`);
+});
+
+test("an SVG shown many times is sanitized once", () => {
+  // Every use sanitized the bytes again, so one 3.8 MiB image at the element cap cost about 1.2 s for
+  // each place it appeared. The sanitized form is now kept against the source array, which a package
+  // returns once however often a document refers to it.
+  const head = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">';
+  const bytes = new TextEncoder().encode(`${head}${'<path d="M0 0"/>'.repeat(240_000)}</svg>`);
+  const live = [];
+  const started = performance.now();
+  const first = createImageUrl(bytes, "image/svg+xml", live);
+  const firstMs = performance.now() - started;
+  assert.ok(first, "the image is shown");
+  live.push(first);
+  const reused = performance.now();
+  const second = createImageUrl(bytes, "image/svg+xml", live);
+  const secondMs = performance.now() - reused;
+  assert.equal(second, first, "the second use shares the first use's URL");
+  console.log(`# svg reuse: ${(bytes.length / 1048576).toFixed(2)} MiB, first ${firstMs.toFixed(0)} ms, second ${secondMs.toFixed(0)} ms`);
+  assert.ok(secondMs < firstMs / 10, `the second use took ${secondMs.toFixed(0)} ms against ${firstMs.toFixed(0)} ms`);
+  revokeImageUrls(live);
 });

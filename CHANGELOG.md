@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0 - 2026-11-17
+
+OpenDocument presentation previews, one resource limit for SVG images that applies to every format which can carry them, and correctness fixes in the OpenDocument text reader and in the fit-to-width measurement it shares with Word previews. All were found by the review of the 0.4.0 changeset and left open at release. No API or dependency changes; a Word preview in the viewer's own scroll area fits to exactly the width it did before.
+
+### Added
+
+- OpenDocument presentation previews: `.odp`, the `.otp` template and the flat `.fodp`, detected from the package's own media type and read into the same presentation model as PPTX, so one renderer serves both. A slide is a `draw:page` at the size its page layout declares; text boxes keep their paragraphs, spans, lists and breaks; images stored in the package or inline are shown; slides carry solid backgrounds; basic and custom shapes carry their preset outline, fill, stroke and text; straight lines and tables inside a frame are drawn. Speaker notes, animations, groups, connectors, embedded objects and charts are counted and named in the notice above the slides rather than dropped, and an outline that is not one of the mapped presets is drawn as a rectangle and reported as approximated. Drawings (`.odg`) and the other graphics kinds stay unrecognised. Worker mode covers the new formats. Limits: 1,000 slides, 500 objects per slide, 1,000 paragraphs per text box, and element and token budgets derived from those rather than from any byte size.
+
+### Security
+
+- A document may have at most 4 MiB of distinct SVG source reduced to the allowlist, and an image shown in several places is sanitized once and shares one `blob:` URL. Sanitizing happens while a document is rendered, which is the page's main thread even in worker mode, and it was bounded per image but not per document: media parts are exempt from the package expansion check, so a package of a few hundred kilobytes could carry 67 images of 3.8 MiB each and occupy the page for about 82 seconds, and one such image shown in many places cost that again for every use. The worst case is now about 1.6 seconds. The new limit is `MAX_DOCUMENT_SVG_BYTES`; images past it are not shown, as oversized raster images already were.
+
+### Fixed
+
+- A list that names no list style of its own is numbered from its paragraph style's `style:list-style-name`, as OpenDocument allows. Such a list was shown with bullets, although the style resolver already read the attribute.
+- Only the first paragraph of a list item inside a table cell carries the label. Every paragraph of the item was labelled, so an item of two paragraphs was numbered twice with the same number.
+- Table content left out because a table reached one of the preview's fixed caps — 10,000 rows, 256 columns or 1,000 paragraphs in a cell — is now counted in the notice above the document. It used to disappear with no notice, against the contract that nothing is dropped silently. Three diagnostic codes are new: `odf.bounds.table-rows`, `odf.bounds.table-columns` and `odf.bounds.cell-paragraphs`.
+- The limit on a paragraph's text length also applies to text merged into the preceding run. It was checked only when a new run was pushed, so a paragraph whose text all carried the same formatting could grow past the limit — a hundredfold in the measured case. The check is now a running count rather than a sum over every run, so it also stops being quadratic in the number of runs.
+- The count of images and shapes that cannot be shown is the number of them, not 1. Each kind was reported once, so the message said "1 image or shape is not shown" however many were missing.
+- A text document parsed on the main thread can be cancelled: the renderer dropped the caller's `AbortSignal`, although the spreadsheet renderer has always passed it on.
+- Fitting a text document to the width available no longer leaves it narrower when the document carries a notice. The width was measured by subtracting a fixed 32 pixels for the viewer scroll area's padding, which `clientWidth` includes; the notice sits in a wrapper between the pages and that scroll area, so the padding was subtracted a second time and such a document fitted about 32 pixels narrower than the same document with nothing to report. The padding is now measured, which also makes the fit correct for an application that gives the scroll area padding of its own.
+- A flat `.fodt` document whose `office:mimetype` attribute is delimited by single quotes is detected. XML allows either quote character; only double quotes were matched, so such a document was unrecognised, or was taken for a package and refused. The media type is still matched as a whole value, so master documents and web templates stay unclaimed.
+
 ## 0.4.0 - 2026-11-11
 
 This release adds OpenDocument text previews and fixes two resource-exhaustion issues in the handling of untrusted files. It is a minor version because the public `FileFormat` type gains three members and the default renderer registry serves them; existing code that does not switch exhaustively over `FileFormat` works without changes. Upgrading is recommended for applications that preview files from untrusted sources. The package still has no runtime dependencies.

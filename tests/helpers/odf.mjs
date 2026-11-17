@@ -7,6 +7,7 @@ export const ODF_NAMESPACES = {
   text: "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
   table: "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
   draw: "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0",
+  presentation: "urn:oasis:names:tc:opendocument:xmlns:presentation:1.0",
   fo: "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0",
   svg: "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0",
   number: "urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0",
@@ -130,3 +131,41 @@ export function flatOdtXml({ body = "", automatic = "", fontFaces = "", styles =
   return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document office:version="1.3" office:mimetype="${mimetype}"><office:meta><meta:generator>${generator}</meta:generator></office:meta><office:font-face-decls>${fontFaces}</office:font-face-decls><office:styles>${styles}</office:styles><office:automatic-styles>${automatic}</office:automatic-styles><office:master-styles>${master}</office:master-styles><office:body><office:text>${body}</office:text></office:body></office:document>`, prefixes);
 }
 export const makeFodt = (options, prefixes) => new TextEncoder().encode(flatOdtXml(options, prefixes));
+
+// ---------------------------------------------------------------------------------------------
+// OpenDocument presentations (milestones 4.1 to 4.5). Same shape as the text helpers above.
+// ---------------------------------------------------------------------------------------------
+
+export const ODP_MEDIA_TYPE = "application/vnd.oasis.opendocument.presentation";
+export const OTP_MEDIA_TYPE = "application/vnd.oasis.opendocument.presentation-template";
+
+/** content.xml of a presentation: `body` is the inner content of office:presentation (draw:page elements). */
+export function presentationContent({ body = "", automatic = "", fontFaces = "", version = "1.3" } = {}, prefixes = {}) {
+  // `automatic: null` leaves out office:automatic-styles altogether, which the format allows.
+  const automaticStyles = automatic === null ? "" : `<office:automatic-styles>${automatic}</office:automatic-styles>`;
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document-content office:version="${version}"><office:font-face-decls>${fontFaces}</office:font-face-decls>${automaticStyles}<office:body><office:presentation>${body}</office:presentation></office:body></office:document-content>`, prefixes);
+}
+
+/** styles.xml of a presentation: `master` is the inner content of office:master-styles. */
+export function presentationStyles({ styles = "", automatic = "", master = "" } = {}, prefixes = {}) {
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document-styles office:version="1.3"><office:styles>${styles}</office:styles><office:automatic-styles>${automatic}</office:automatic-styles><office:master-styles>${master}</office:master-styles></office:document-styles>`, prefixes);
+}
+
+/** A complete .odp (or .otp) package from presentationContent/presentationStyles options. */
+export function makeOdp({ body, automatic, fontFaces, styles, styleAutomatic, master, generator = "LibreOffice/24.8.4.2$Windows_X86_64 LibreOffice_project/test", extra, mimetype = ODP_MEDIA_TYPE, manifest } = {}, prefixes = {}) {
+  const meta = odfXml(`<office:document-meta office:version="1.3"><office:meta><meta:generator>${generator}</meta:generator></office:meta></office:document-meta>`, prefixes);
+  return makeOdfPackage({
+    mimetype,
+    content: presentationContent({ body, automatic, fontFaces }, prefixes),
+    styles: presentationStyles({ styles, automatic: styleAutomatic, master }, prefixes),
+    meta,
+    ...(extra ? { extra } : {}),
+    ...(manifest !== undefined ? { manifest } : {}),
+  });
+}
+
+/** The flat (.fodp) equivalent of makeOdp, as a UTF-8 string. */
+export function flatOdpXml({ body = "", automatic = "", fontFaces = "", styles = "", master = "", generator = "LibreOffice/24.8.4.2$Windows_X86_64 LibreOffice_project/test", mimetype = ODP_MEDIA_TYPE } = {}, prefixes = {}) {
+  return odfXml(`<?xml version="1.0" encoding="UTF-8"?><office:document office:version="1.3" office:mimetype="${mimetype}"><office:meta><meta:generator>${generator}</meta:generator></office:meta><office:font-face-decls>${fontFaces}</office:font-face-decls><office:styles>${styles}</office:styles><office:automatic-styles>${automatic}</office:automatic-styles><office:master-styles>${master}</office:master-styles><office:body><office:presentation>${body}</office:presentation></office:body></office:document>`, prefixes);
+}
+export const makeFodp = (options, prefixes) => new TextEncoder().encode(flatOdpXml(options, prefixes));

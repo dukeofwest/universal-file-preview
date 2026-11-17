@@ -11,12 +11,14 @@ import { makeOdt } from "./helpers/odf.mjs";
 // and the regression script; this is the deterministic end-to-end check.
 
 class FakeElement {
-  constructor(tag) { this.tagName = tag; this.children = []; this.attributes = {}; this.className = ""; this.textContent = ""; this.title = ""; this.hidden = false; this.parent = null; this.dataset = {}; this.style = { setProperty() {} }; }
+  constructor(tag) { this.tagName = tag; this.children = []; this.attributes = {}; this.className = ""; this.textContent = ""; this.title = ""; this.hidden = false; this.parent = null; this.dataset = {}; this.style = { setProperty() {}, removeProperty() {} }; }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   append(...nodes) { for (const node of nodes) { node.remove?.(); node.parent = this; this.children.push(node); } }
   replaceChildren(...nodes) { for (const child of this.children) child.parent = null; this.children = []; this.append(...nodes); }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; }
   addEventListener() {}
+  /** The renderer measures the width available from the element it is mounted in. */
+  get parentElement() { return this.parent; }
   get classList() {
     const names = () => this.className.split(/\s+/).filter(Boolean);
     return {
@@ -179,4 +181,60 @@ test("the Word renderer still produces exactly what it produced for DOCX", t => 
     assert.deepEqual(composed, direct, `${fixture.id}: composing the renderer changes nothing`);
     assert.ok(direct.length > 1, `${fixture.id}: the fixture renders something`);
   }
+});
+
+test("the caller's signal reaches a main-thread parse", t => {
+  withDom(t);
+  // The renderer dropped context.signal, so an ODT parse on the main thread could not be cancelled,
+  // although the spreadsheet renderer has always passed it through.
+  const controller = new AbortController();
+  controller.abort();
+  const bytes = makeOdt({ body: "<text:p>Plain</text:p>" });
+  assert.throws(() => new OdtRenderer().render({ ...context, bytes, signal: controller.signal }),
+    error => error?.name === "PreviewError" && error.code === "aborted");
+});
+
+test("fitting to width does not subtract the viewer's padding twice when a notice is shown", t => {
+  withDom(t);
+  // The Word renderer subtracted a fixed 32px for the viewer scroll area's 16px of padding, which
+  // clientWidth includes. A notice puts .ufp-word-wrapper between the pages and that scroll area,
+  // and the wrapper's clientWidth is already the content box, so the padding came off a second time:
+  // the same document fitted about 32px narrower whenever it had something to report.
+  const previous = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = element => element.className === "ufp-content"
+    ? { paddingLeft: "16px", paddingRight: "16px" }
+    : { paddingLeft: "0px", paddingRight: "0px" };
+  t.after(() => { globalThis.getComputedStyle = previous; });
+
+  const content = 866; // the scroll area's content box, inside 16px of padding either side
+  const fit = body => {
+    const model = parseModel("odt", makeOdt({ body }), "letter.odt", { locale: "en-US" });
+    const instance = new OdtRenderer().renderParsed(model, context);
+    const scroll = new FakeElement("div");
+    scroll.className = "ufp-content";
+    scroll.clientWidth = content + 32;
+    scroll.append(instance.element);
+    const wrapped = instance.element.className === "ufp-word-wrapper";
+    if (wrapped) instance.element.clientWidth = content;
+    const pages = wrapped ? instance.element.querySelector(".ufp-word-document") : instance.element;
+    let zoom = "1";
+    pages.style = { setProperty: (name, value) => { zoom = value; }, removeProperty: () => { zoom = "1"; } };
+    instance.fitToWidth();
+    return { zoom, wrapped, pageWidth: model.page ? model.page.width / 72 * 96 : 816 };
+  };
+
+  const plain = fit("<text:p>Plain</text:p>");
+  const notice = fit('<text:p>Before <text:note text:note-class="footnote"><text:note-body><text:p>Note</text:p></text:note-body></text:note></text:p>');
+  assert.equal(plain.wrapped, false, "a document with nothing to report is mounted directly");
+  assert.equal(notice.wrapped, true, "a document with a notice is mounted inside the wrapper");
+  assert.equal(plain.zoom, String(content / plain.pageWidth), "the page fits the scroll area's content box");
+  assert.equal(notice.zoom, plain.zoom, "a notice does not shrink the document");
+
+  // An unmounted document has no width to measure, and keeps the scale it was given before the fix.
+  const model = parseModel("odt", makeOdt({ body: "<text:p>Plain</text:p>" }), "letter.odt", { locale: "en-US" });
+  const loose = new OdtRenderer().renderParsed(model, context);
+  let zoom = "1";
+  loose.element.style = { setProperty: (name, value) => { zoom = value; }, removeProperty: () => { zoom = "1"; } };
+  loose.fitToWidth();
+  assert.equal(zoom, String((plain.pageWidth - 32) / plain.pageWidth), "an unmounted document is unaffected");
 });

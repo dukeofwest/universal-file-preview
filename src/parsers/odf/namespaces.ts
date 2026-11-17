@@ -12,6 +12,7 @@ export const ODF = {
   text: "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
   table: "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
   draw: "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0",
+  presentation: "urn:oasis:names:tc:opendocument:xmlns:presentation:1.0",
   fo: "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0",
   svg: "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0",
   number: "urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0",

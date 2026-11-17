@@ -13,6 +13,8 @@
 .ufp-word-page td { padding: 0; vertical-align: top; overflow-wrap: anywhere; }
 .ufp-word-page .ufp-word-image { max-width: 100%; height: auto; vertical-align: middle; }
 .ufp-word-list-label { white-space: pre; }
+.ufp-word-wrapper { display: flex; flex-direction: column; min-width: 0; }
+.ufp-slides-wrapper { display: flex; flex-direction: column; min-width: 0; }
 .ufp-sheet-notice { flex: none; margin: 0 0 8px; padding: 8px 12px; border: 1px solid #e3c46b; border-radius: 6px; background: #fff8e1; color: #4d3800; font-size: 13px; line-height: 1.4; }
 .ufp-sheet-notice p { margin: 0; font-weight: 600; }
 .ufp-sheet-notice ul { margin: 4px 0 0; padding-left: 20px; }

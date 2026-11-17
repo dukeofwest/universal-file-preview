@@ -10,7 +10,7 @@ import type { ExtendedWordDocument, ExtendedWorkbook } from "../model-extensions
  */
 
 export const PROTOCOL_VERSION = 1;
-export const WORKER_FORMATS = ["docx", "xlsx", "pptx", "ods", "ots", "fods", "odt", "ott", "fodt"] as const;
+export const WORKER_FORMATS = ["docx", "xlsx", "pptx", "ods", "ots", "fods", "odt", "ott", "fodt", "odp", "otp", "fodp"] as const;
 export type WorkerFormat = typeof WORKER_FORMATS[number];
 export type DocumentModel = WordDocument | Presentation | Workbook | ExtendedWorkbook | ExtendedWordDocument;
 
@@ -82,7 +82,7 @@ export function expectedKind(format: WorkerFormat): DocumentModel["kind"] {
 }
 const MODEL_KINDS: { readonly [F in WorkerFormat]: DocumentModel["kind"] } = {
   docx: "word", odt: "word", ott: "word",
-  pptx: "presentation",
+  pptx: "presentation", odp: "presentation", otp: "presentation", fodp: "presentation",
   fodt: "word",
   xlsx: "workbook", ods: "workbook", ots: "workbook", fods: "workbook",
 };
