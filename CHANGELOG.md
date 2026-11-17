@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-11-17
 
 OpenDocument presentation previews, one resource limit for SVG images that applies to every format which can carry them, and correctness fixes in the OpenDocument text reader and in the fit-to-width measurement it shares with Word previews. All were found by the review of the 0.4.0 changeset and left open at release. No API or dependency changes; a Word preview in the viewer's own scroll area fits to exactly the width it did before.
 
