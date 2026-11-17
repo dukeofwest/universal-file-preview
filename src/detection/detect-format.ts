@@ -93,7 +93,7 @@ function isFlatSpreadsheet(bytes: Uint8Array): boolean {
  * master-document, web-template and master-template types, which this library does not read. Either quote
  * character delimits it: XML allows both, so a producer that writes single quotes is read the same way.
  */
-const flatTextMediaType = new RegExp(`mimetype\\s*=\\s*(["'])(?:${ODT_MEDIA_TYPE}|${OTT_MEDIA_TYPE})\\1`.replace(/\./g, "\\."));
+const flatTextMediaType = flatMediaTypePattern(ODT_MEDIA_TYPE, OTT_MEDIA_TYPE);
 function isFlatText(bytes: Uint8Array): boolean {
   const text = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
   return text.includes(ODF_OFFICE_NAMESPACE) && flatTextMediaType.test(text);
@@ -105,10 +105,30 @@ function isFlatText(bytes: Uint8Array): boolean {
  * delimited by either quote character. Matching by prefix is wrong here too, since the drawing and
  * graphics kinds this library does not read share the start of the type.
  */
-const flatPresentationMediaType = new RegExp(`mimetype\\s*=\\s*(["'])(?:${ODP_MEDIA_TYPE}|${OTP_MEDIA_TYPE})\\1`.replace(/\./g, "\\."));
+const flatPresentationMediaType = flatMediaTypePattern(ODP_MEDIA_TYPE, OTP_MEDIA_TYPE);
 function isFlatPresentation(bytes: Uint8Array): boolean {
   const text = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
   return text.includes(ODF_OFFICE_NAMESPACE) && flatPresentationMediaType.test(text);
+}
+
+/**
+ * Escapes a literal so it matches itself inside a regular expression, every metacharacter included.
+ * A declaration rather than a const: the patterns below are built as this module loads.
+ */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Matches one of `types` as the whole value of an `office:mimetype` attribute, delimited by either
+ * quote character, since XML allows both. Matching the value as a whole matters: several OpenDocument
+ * media types this library does not read have another one as their prefix.
+ *
+ * Each type is escaped in full rather than having dots replaced in the assembled pattern, which
+ * escaped only the characters that happened to need it in today's constants.
+ */
+function flatMediaTypePattern(...types: readonly string[]): RegExp {
+  return new RegExp(`mimetype\\s*=\\s*(["'])(?:${types.map(escapeRegExp).join("|")})\\1`);
 }
 
 /** Own-property lookup: names and MIME types are untrusted and must not resolve inherited properties such as "constructor". */
