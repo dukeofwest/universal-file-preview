@@ -7,7 +7,7 @@ npm test
 npm run typecheck
 ```
 
-`npm test` first runs the TypeScript build and then Node's built-in test runner over `tests/*.test.mjs`. The current suite has 435 tests covering:
+`npm test` first runs the TypeScript build and then Node's built-in test runner over `tests/*.test.mjs`. The current suite has 499 tests covering:
 
 - binary reads, format detection (including OpenDocument detection), ZIP decoding and limits, and XML handling (the tree parser, the namespace-aware tokenizer, namespace resolution, and the streaming reader);
 - characterization snapshots that pin the DOCX, XLSX, PPTX, and demo-sample parser output, plus synthetic DOCX/XLSX/PPTX parser fixtures and selected XLSX format/formula behaviour;

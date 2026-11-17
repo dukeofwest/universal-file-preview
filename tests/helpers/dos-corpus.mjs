@@ -3,7 +3,7 @@
 // The audit's budget is 2 seconds and a 256 MiB heap; an entry that needs more says so in `budget`, with the reason.
 // Test-only; Node built-ins and the test helpers only. Used by tests/dos-budget.test.mjs.
 import { makeZip } from "./zip.mjs";
-import { makeFods, makeFodt, makeOds, makeOdt } from "./odf.mjs";
+import { makeFodp, makeFods, makeFodt, makeOdp, makeOds, makeOdt } from "./odf.mjs";
 
 const S = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 const P = 'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
@@ -148,6 +148,22 @@ export function dosCorpus() {
       build: () => makeFodt({ body: `<text:p><draw:frame svg:width="1cm" svg:height="1cm"><draw:image><office:binary-data>${"A".repeat(48 * 1024 * 1024)}</office:binary-data></draw:image></draw:frame></text:p>` }) },
     { id: "space-bomb.fodt", kind: "fodt", expect: "refused", limit: "text of one paragraph",
       build: () => makeFodt({ body: `<text:p>${'<text:s text:c="10000"/>'.repeat(200)}</text:p>`.repeat(200) }) },
+    // OpenDocument presentations.
+    { id: "slide-bomb.odp", kind: "odp", expect: "handled", limit: "slides kept per document, counted as they are read",
+      build: () => makeOdp({ body: '<draw:page draw:name="p"/>'.repeat(400_000) }) },
+    { id: "object-bomb.odp", kind: "odp", expect: "handled", limit: "objects kept per slide, counted as they are read",
+      build: () => makeOdp({ body: `<draw:page draw:name="p">${'<draw:rect svg:x="0cm" svg:y="0cm" svg:width="1cm" svg:height="1cm"/>'.repeat(200_000)}</draw:page>` }) },
+    { id: "space-bomb.odp", kind: "odp", expect: "refused", limit: "text of one paragraph in a text box",
+      build: () => makeOdp({ body: `<draw:page draw:name="p"><draw:frame svg:x="0cm" svg:y="0cm" svg:width="5cm" svg:height="5cm"><draw:text-box>${`<text:p>${'<text:s text:c="10000"/>'.repeat(200)}</text:p>`.repeat(200)}</draw:text-box></draw:frame></draw:page>` }) },
+    { id: "table-bomb.odp", kind: "odp", expect: "refused", limit: "elements in one captured drawing object, which a table on a slide is part of",
+      build: () => makeOdp({ body: `<draw:page draw:name="p"><draw:frame svg:x="0cm" svg:y="0cm" svg:width="5cm" svg:height="5cm"><table:table table:name="T">${`<table:table-row>${'<table:table-cell><text:p>c</text:p></table:table-cell>'.repeat(100)}</table:table-row>`.repeat(2000)}</table:table></draw:frame></draw:page>` }) },
+    { id: "deep-shape-styles.odp", kind: "odp", expect: "handled", limit: "graphic style inheritance depth and cycles",
+      build: () => makeOdp({
+        styleAutomatic: Array.from({ length: 2000 }, (_, index) => `<style:style style:name="gr${index}" style:family="graphic" style:parent-style-name="gr${index + 1}"><style:graphic-properties draw:fill="solid" draw:fill-color="#010203"/></style:style>`).join(""),
+        body: `<draw:page draw:name="p">${Array.from({ length: 400 }, (_, index) => `<draw:rect draw:style-name="gr${index}" svg:x="0cm" svg:y="0cm" svg:width="1cm" svg:height="1cm"/>`).join("")}</draw:page>`,
+      }) },
+    { id: "inline-image-bomb.fodp", kind: "fodp", expect: "handled", limit: "decoded size of one inline image",
+      build: () => makeFodp({ body: `<draw:page draw:name="p"><draw:frame svg:x="0cm" svg:y="0cm" svg:width="1cm" svg:height="1cm"><draw:image><office:binary-data>${"A".repeat(48 * 1024 * 1024)}</office:binary-data></draw:image></draw:frame></draw:page>` }) },
     // XML structure.
     { id: "nesting-deeper-than-the-limit.docx", kind: "docx", expect: "refused", limit: "XML nesting depth",
       build: () => new Uint8Array(makeZip({ "word/document.xml": `<w:document ${W}><w:body>${"<w:sdt>".repeat(400)}${"</w:sdt>".repeat(400)}</w:body></w:document>` }, { deflate: true })) },

@@ -44,7 +44,8 @@ test("the text kinds this library does not read stay unknown", () => {
   assert.equal(detectFormat("page.oth", "", oth), "unknown");
   assert.equal(detectFormat("book.odm", "", undefined), "unknown");
   assert.equal(detectFormat("x.zip", "", makeOdfPackage({ mimetype: `${ODT}-master-template`, content: textContent })), "unknown");
-  assert.equal(detectFormat("deck.odp", "", makeOdfPackage({ mimetype: ODP, content: textContent })), "unknown", "presentations arrive in phase 4");
+  // Presentations arrived in phase 4 and are their own format; the text reader must not claim them.
+  assert.equal(detectFormat("deck.odp", "", makeOdfPackage({ mimetype: ODP, content: textContent })), "odp");
 });
 
 test("text documents are detected from the MIME type or the extension alone", () => {

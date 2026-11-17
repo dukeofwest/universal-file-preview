@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-One resource limit for SVG images, which applies to every format that can carry them, and correctness fixes in the OpenDocument text reader and in the fit-to-width measurement it shares with Word previews. All were found by the review of the 0.4.0 changeset and left open at release. No API or dependency changes; a Word preview in the viewer's own scroll area fits to exactly the width it did before.
+OpenDocument presentation previews, one resource limit for SVG images that applies to every format which can carry them, and correctness fixes in the OpenDocument text reader and in the fit-to-width measurement it shares with Word previews. All were found by the review of the 0.4.0 changeset and left open at release. No API or dependency changes; a Word preview in the viewer's own scroll area fits to exactly the width it did before.
+
+### Added
+
+- OpenDocument presentation previews: `.odp`, the `.otp` template and the flat `.fodp`, detected from the package's own media type and read into the same presentation model as PPTX, so one renderer serves both. A slide is a `draw:page` at the size its page layout declares; text boxes keep their paragraphs, spans, lists and breaks; images stored in the package or inline are shown; slides carry solid backgrounds; basic and custom shapes carry their preset outline, fill, stroke and text; straight lines and tables inside a frame are drawn. Speaker notes, animations, groups, connectors, embedded objects and charts are counted and named in the notice above the slides rather than dropped, and an outline that is not one of the mapped presets is drawn as a rectangle and reported as approximated. Drawings (`.odg`) and the other graphics kinds stay unrecognised. Worker mode covers the new formats. Limits: 1,000 slides, 500 objects per slide, 1,000 paragraphs per text box, and element and token budgets derived from those rather than from any byte size.
 
 ### Security
 
